@@ -741,10 +741,7 @@ const AccountsPage = () => {
               <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white font-mono" type="number" value={txForm.newCreditLimit} onChange={e => setTxForm({ ...txForm, newCreditLimit: e.target.value })} />
             </div>
           )}
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Motivo del cambio</label>
-            <textarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white h-20" placeholder="Ej: Pago de nómina, Cena..." value={txForm.reason} onChange={e => setTxForm({ ...txForm, reason: e.target.value })} />
-          </div>
+
           <div>
             <label className="text-xs text-slate-400 mb-1 block">Fecha</label>
             <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" type="date" value={txForm.date} onChange={e => setTxForm({ ...txForm, date: e.target.value })} />
