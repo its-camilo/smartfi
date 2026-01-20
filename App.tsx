@@ -30,7 +30,8 @@ import { isSupabaseConfigured } from './supabaseClient';
 // Charts
 import {
   ResponsiveContainer,
-  XAxis, YAxis, CartesianGrid, AreaChart, Area, ComposedChart, Tooltip
+  XAxis, YAxis, CartesianGrid, AreaChart, Area, ComposedChart, Tooltip,
+  Bar, Cell, Line
 } from 'recharts';
 
 // --- AUTH CONTEXT ---
@@ -789,11 +790,146 @@ const AccountCard = ({ account, onUpdate, onDelete, format }: any) => (
 );
 
 const PerformancePage = () => {
+  const { user } = useAuth();
+  const { data, convertValue, getFormattedValue } = useBudget();
+  const [timeRange, setTimeRange] = useState('ALL');
+  const [premiumModalOpen, setPremiumModalOpen] = useState(false);
+
+  const stats = useMemo(() => {
+    if (!data.transactions.length) return { ea: 0, projections: [] };
+
+    // 1. Calculate historical metrics
+    const now = new Date();
+    let startDate = new Date();
+    if (timeRange === '1M') startDate.setMonth(now.getMonth() - 1);
+    else if (timeRange === '3M') startDate.setMonth(now.getMonth() - 3);
+    else if (timeRange === '6M') startDate.setMonth(now.getMonth() - 6);
+    else if (timeRange === '1Y') startDate.setFullYear(now.getFullYear() - 1);
+    else startDate = new Date(PROJECT_START_DATE);
+
+    // Filter transactions in range
+    const rangeTxs = data.transactions.filter(t => new Date(t.date) >= startDate);
+    if (rangeTxs.length < 2) return { ea: 0, projections: [] };
+
+    const firstTx = rangeTxs.reduce((prev, curr) => new Date(prev.date) < new Date(curr.date) ? prev : curr);
+    const lastTx = rangeTxs.reduce((prev, curr) => new Date(prev.date) > new Date(curr.date) ? prev : curr);
+
+    const startValue = firstTx.newBalance;
+    const endValue = lastTx.newBalance;
+
+    const diffMs = new Date(lastTx.date).getTime() - new Date(firstTx.date).getTime();
+    const years = diffMs / (1000 * 60 * 60 * 24 * 365);
+
+    // CAGR (%EA)
+    const ea = startValue > 0 ? (Math.pow(endValue / startValue, 1 / (years || 1)) - 1) : 0;
+    const monthlyRate = Math.pow(1 + ea, 1 / 12) - 1;
+
+    // 2. Projections (Snowball)
+    const projections = [];
+    const currentNetWorth = endValue;
+
+    // Future points: 3m, 6m, 12m
+    [3, 6, 12].forEach(months => {
+      const projectedValue = currentNetWorth * Math.pow(1 + monthlyRate, months);
+      projections.push({
+        label: `${months} meses`,
+        value: projectedValue,
+        date: new Date(now.getFullYear(), now.getMonth() + months, now.getDate()).getTime()
+      });
+    });
+
+    return {
+      ea: ea * 100,
+      projections,
+      currentNetWorth
+    };
+  }, [data.transactions, timeRange]);
+
+  if (!user?.isPremium) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 space-y-6">
+        <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center text-indigo-400">
+          <TrendingUp size={40} />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-white mb-2">Análisis de Rendimiento Pro</h2>
+          <p className="text-slate-400 max-w-md mx-auto">
+            La función <strong>"Bola de Nieve"</strong> permite proyectar tu patrimonio a futuro basado en tu rendimiento real.
+          </p>
+        </div>
+        <button
+          onClick={() => setPremiumModalOpen(true)}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition-all"
+        >
+          Desbloquear con SmartFi Pro
+        </button>
+        <PremiumModal isOpen={premiumModalOpen} onClose={() => setPremiumModalOpen(false)} />
+      </div>
+    );
+  }
+
+  const chartData = [
+    { name: 'Hoy', value: stats.currentNetWorth, isFuture: false },
+    ...stats.projections.map(p => ({ name: p.label, value: p.value, isFuture: true }))
+  ];
+
   return (
-    <div className="text-center p-10 text-slate-500">
-      <TrendingUp className="mx-auto mb-4" size={48} />
-      <h2 className="text-2xl font-bold text-white">Rendimiento</h2>
-      <p>Tus estadísticas de rendimiento se cargarán aquí próximamente.</p>
+    <div className="space-y-6 animate-fade-in pb-10">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Rendimiento y Bola de Nieve</h2>
+          <p className="text-sm text-slate-400">Análisis proyectado basado en tu historial</p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <span className="text-[10px] text-slate-500 uppercase font-bold">Analizar historial de:</span>
+          <TimeRangeSelector current={timeRange} onChange={setTimeRange} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-lg">
+          <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Rendimiento %EA</p>
+          <h3 className="text-2xl font-bold text-indigo-400 font-mono">
+            {stats.ea > 0 ? '+' : ''}{stats.ea.toFixed(2)}%
+          </h3>
+          <p className="text-[10px] text-slate-500 mt-2">Basado en el periodo: {timeRange}</p>
+        </div>
+        {stats.projections.map((p, i) => (
+          <div key={i} className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-lg">
+            <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Proyección {p.label}</p>
+            <h3 className="text-xl font-bold text-emerald-400 font-mono">
+              {getFormattedValue(p.value, Currency.COP)}
+            </h3>
+            <p className="text-[10px] text-slate-500 mt-2">Ganancia: +{getFormattedValue(p.value - stats.currentNetWorth, Currency.COP)}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+        <h3 className="text-lg font-bold text-slate-100 mb-6">Gráfico de Bola de Nieve (Proyección)</h3>
+        <div className="h-[350px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData}>
+              <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
+              <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9' }}
+                formatter={(val: number) => [getFormattedValue(val, Currency.COP), 'Patrimonio Estimado']}
+              />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.isFuture ? '#10b981' : '#3b82f6'} fillOpacity={entry.isFuture ? 0.6 : 1} />
+                ))}
+              </Bar>
+              <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} dot={{ r: 6, fill: '#6366f1' }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-[10px] text-slate-500 mt-4 text-center italic">
+          * Nota: Estas proyecciones son estimaciones matemáticas basadas en el rendimiento pasado y no garantizan resultados futuros.
+        </p>
+      </div>
     </div>
   );
 };
@@ -829,8 +965,10 @@ const Layout = () => {
         </nav>
         <div className="p-4 border-t border-slate-800 space-y-4">
           <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
-            <label className="text-xs text-slate-400 block mb-1">Tasa USD (COP)</label>
-            <input type="number" className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-right font-mono" value={data.settings.usdToCopRate} onChange={(e) => updateUSDRate(Number(e.target.value))} />
+            <label className="text-xs text-slate-400 block mb-1">Tasa USD (COP) - Auto</label>
+            <div className="w-full bg-slate-950/50 border border-slate-700 rounded px-2 py-1 text-sm text-right font-mono text-indigo-400">
+              {new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2 }).format(data.settings.usdToCopRate)}
+            </div>
           </div>
           <button onClick={logout} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm w-full px-2">
             <LogOut size={16} /> Cerrar Sesión
@@ -919,14 +1057,33 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, [isConfigured]);
 
-  // Fetch data when user logs in
+  // Fetch data and rate when user logs in
   useEffect(() => {
     if (user) {
       refreshData();
+      fetchUSDRate();
+
+      // Auto-update rate every hour
+      const interval = setInterval(fetchUSDRate, 1000 * 60 * 60);
+      return () => clearInterval(interval);
     } else {
       setData(INITIAL_DATA);
     }
   }, [user]);
+
+  const fetchUSDRate = async () => {
+    try {
+      const response = await fetch('https://open.er-api.com/v6/latest/USD');
+      const result = await response.json();
+      if (result.result === 'success' && result.rates.COP) {
+        // Format to 2 decimal places fixed as requested
+        const rate = parseFloat(result.rates.COP.toFixed(2));
+        setData(p => ({ ...p, settings: { ...p.settings, usdToCopRate: rate } }));
+      }
+    } catch (e) {
+      console.error("Failed to fetch exchange rate", e);
+    }
+  };
 
   const refreshData = async () => {
     if (!isConfigured) return;
