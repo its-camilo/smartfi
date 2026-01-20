@@ -297,9 +297,6 @@ const AuthPage = () => {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="mb-4 flex justify-center">
-            <img src="/logo.jpg" alt="SmartFi" className="w-16 h-16 rounded-xl shadow-lg border border-slate-700" />
-          </div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent mb-1">SmartFi</h1>
           <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">AI Assistant</p>
         </div>
