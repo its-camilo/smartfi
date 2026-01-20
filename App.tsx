@@ -35,7 +35,7 @@ import { isSupabaseConfigured } from './supabaseClient';
 import {
   ResponsiveContainer,
   XAxis, YAxis, CartesianGrid, AreaChart, Area, ComposedChart, Tooltip,
-  Bar, Cell, Line, PieChart, Pie
+  Bar, Cell, Line, PieChart, Pie, Legend
 } from 'recharts';
 
 // --- AUTH CONTEXT ---
@@ -592,16 +592,17 @@ const Dashboard = () => {
               </linearGradient>
             </defs>
             <XAxis dataKey="date" tickFormatter={(d) => new Date(d).toLocaleDateString()} stroke="#64748b" fontSize={10} />
-            <YAxis stroke="#64748b" fontSize={10} tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
+            <YAxis stroke="#64748b" fontSize={10} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
             <Tooltip
-              contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9' }}
+              contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9', fontSize: '10px' }}
               labelFormatter={(l) => new Date(l).toLocaleDateString()}
               formatter={(v: any) => getFormattedValue(v, Currency.COP)}
             />
-            <Area type="monotone" dataKey="netWorth" stroke="#ffffff" fill="url(#colorNetWorth)" strokeWidth={2} name="Patrimonio Neto" />
+            <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
+            <Area type="monotone" dataKey="netWorth" stroke="#ffffff" fill="url(#colorNetWorth)" strokeWidth={2} name="Patrimonio" />
             <Area type="monotone" dataKey="liquidity" stroke="#10b981" fill="url(#colorLiquidity)" strokeWidth={2} name="Liquidez" />
-            <Area type="monotone" dataKey="buyingPower" stroke="#3b82f6" fill="url(#colorBuyingPower)" strokeWidth={2} name="Poder de Compra" />
+            <Area type="monotone" dataKey="buyingPower" stroke="#3b82f6" fill="url(#colorBuyingPower)" strokeWidth={2} name="Poder Compra" />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -1132,82 +1133,85 @@ const PerformancePage = () => {
   }, [data, dimension]);
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-white">Rendimiento Detallado</h2>
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            <span className="text-sm text-slate-500">Filtrar por:</span>
+    <div className="space-y-6 animate-fade-in pb-10 max-w-[100vw] overflow-x-hidden">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div className="w-full lg:w-auto">
+          <h2 className="text-xl md:text-2xl font-bold text-white">Rendimiento Detallado</h2>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <span className="text-xs md:text-sm text-slate-500">Filtrar:</span>
             <select
-              className="bg-slate-900 border border-slate-700 text-indigo-400 font-bold rounded px-2 py-1 text-xs focus:outline-none"
+              className="bg-slate-900 border border-slate-700 text-indigo-400 font-bold rounded px-2 py-1 text-[10px] md:text-xs focus:outline-none"
               value={dimension}
               onChange={e => { setDimension(e.target.value as any); setFilterId('ALL'); }}
             >
-              <option value="GENERAL">Todo el Patrimonio</option>
-              <option value="GROUP">Por Grupo</option>
-              <option value="CATEGORY">Por Etiqueta</option>
+              <option value="GENERAL">Patrimonio</option>
+              <option value="GROUP">Grupo</option>
+              <option value="CATEGORY">Etiqueta</option>
             </select>
 
             {dimension !== 'GENERAL' && (
               <select
-                className="bg-slate-900 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                className="bg-slate-900 border border-slate-700 text-white rounded px-2 py-1 text-[10px] md:text-xs focus:outline-none max-w-[120px]"
                 value={filterId}
                 onChange={e => setFilterId(e.target.value)}
               >
-                <option value="ALL">Seleccionar {dimension === 'GROUP' ? 'Grupo' : 'Etiqueta'}...</option>
+                <option value="ALL">¿Cuál?</option>
                 {filterOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
               </select>
             )}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="w-full lg:w-auto flex justify-start lg:justify-end">
           <TimeRangeSelector current={timeRange} onChange={setTimeRange} />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-          <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Rendimiento Normal</p>
-          <h3 className={`text-xl font-bold font-mono ${stats.normal >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {stats.normal > 0 ? '+' : ''}{stats.normal.toFixed(2)}%
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 md:gap-4">
+        <div className="bg-slate-800 p-3 md:p-4 rounded-xl border border-slate-700 col-span-1 text-center">
+          <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase mb-1 truncate">Rendimiento</p>
+          <h3 className={`text-base md:text-xl font-bold font-mono ${stats.normal >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {stats.normal > 0 ? '+' : ''}{stats.normal.toFixed(1)}%
           </h3>
         </div>
-        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-          <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Efectivo Anual (%EA)</p>
-          <h3 className="text-xl font-bold text-indigo-400 font-mono">
-            {stats.ea > 0 ? '+' : ''}{stats.ea.toFixed(2)}%
+        <div className="bg-slate-800 p-3 md:p-4 rounded-xl border border-slate-700 col-span-1 text-center">
+          <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase mb-1 truncate">% Anualizado</p>
+          <h3 className="text-base md:text-xl font-bold text-indigo-400 font-mono">
+            {stats.ea.toFixed(1)}%
+          </h3>
+        </div>
+        <div className="bg-slate-800 p-3 md:p-4 rounded-xl border border-indigo-500/30 col-span-2 lg:col-span-1">
+          <p className="text-indigo-400 text-[9px] md:text-[10px] font-bold uppercase mb-1">Valor Actual</p>
+          <h3 className="text-base md:text-lg font-bold text-white font-mono break-all leading-tight">
+            {getFormattedValue(stats.currentVal, Currency.COP)}
           </h3>
         </div>
         {stats.projections.map((p, i) => (
-          <div key={i} className="bg-slate-800 p-4 rounded-xl border border-slate-700 lg:col-span-1">
-            <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Proy. {p.label}</p>
-            <h3 className="text-lg font-bold text-emerald-400 font-mono">
+          <div key={i} className="bg-slate-800 p-3 md:p-4 rounded-xl border border-slate-700 col-span-2 md:col-span-1 lg:col-span-1">
+            <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase mb-1">Proy. {p.label}</p>
+            <h3 className="text-sm md:text-base font-bold text-emerald-400 font-mono break-all leading-tight">
               {getFormattedValue(p.value, Currency.COP)}
             </h3>
           </div>
         ))}
-        <div className="bg-slate-800 p-4 rounded-xl border border-indigo-500/30 lg:col-span-1">
-          <p className="text-indigo-400 text-[10px] font-bold uppercase mb-1">Valor Actual</p>
-          <h3 className="text-lg font-bold text-white font-mono">
-            {getFormattedValue(stats.currentVal, Currency.COP)}
-          </h3>
-        </div>
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-        <h3 className="text-lg font-bold text-slate-100 mb-6 flex items-center gap-2">
-          Gráfico de Bola de Nieve <span className="text-xs font-normal text-slate-500">(Basado en tendencia actual)</span>
+      <div className="bg-slate-800 p-4 md:p-6 rounded-xl border border-slate-700 shadow-lg">
+        <h3 className="text-base md:text-lg font-bold text-slate-100 mb-4 flex flex-col md:flex-row md:items-center gap-1 md:gap-2">
+          Bola de Nieve <span className="text-[10px] md:text-xs font-normal text-slate-500">(Tendencia actual)</span>
         </h3>
-        <div className="h-[350px] w-full">
+        <div className="h-[220px] md:h-[350px] w-full mt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={snowballChart}>
-              <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
-              <YAxis stroke="#64748b" fontSize={11} tickFormatter={v => `$${(v / 1000000).toFixed(1)}M`} />
-              <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }} formatter={(v: any) => getFormattedValue(v, Currency.COP)} />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+            <ComposedChart data={snowballChart} margin={{ top: 10, right: 10, bottom: 0, left: -25 }}>
+              <XAxis dataKey="name" stroke="#64748b" fontSize={9} tick={{ fontSize: 9 }} />
+              <YAxis stroke="#64748b" fontSize={8} tick={{ fontSize: 8 }} tickFormatter={v => `${(v / 1000000).toFixed(1)}M`} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '10px' }}
+                formatter={(v: any) => getFormattedValue(v, Currency.COP)}
+              />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={25}>
                 {snowballChart.map((e, i) => <Cell key={i} fill={e.isFuture ? '#10b981' : '#3b82f6'} fillOpacity={e.isFuture ? 0.4 : 1} />)}
               </Bar>
-              <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} dot={{ r: 6, fill: '#6366f1' }} />
+              <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: '#6366f1' }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -1267,10 +1271,21 @@ const Layout = () => {
       </div>
 
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-30 bg-slate-900 pt-20 px-4 space-y-4">
-          <NavItem to="/" icon={<LayoutDashboard size={20} />} label="Panel" onClick={() => setMobileMenuOpen(false)} />
-          <NavItem to="/accounts" icon={<Wallet size={20} />} label="Cuentas" onClick={() => setMobileMenuOpen(false)} />
-          <button onClick={logout} className="flex items-center gap-3 px-4 py-3 text-slate-400"><LogOut size={20} /> Salir</button>
+        <div className="md:hidden fixed inset-0 z-30 bg-slate-900 pt-20 px-4 space-y-2 flex flex-col">
+          <NavItem to="/" icon={<LayoutDashboard size={20} />} label="Panel Principal" onClick={() => setMobileMenuOpen(false)} />
+          <NavItem to="/accounts" icon={<Wallet size={20} />} label="Cuentas y Grupos" onClick={() => setMobileMenuOpen(false)} />
+          <NavItem to="/performance" icon={<TrendingUp size={20} />} label="Rendimiento" onClick={() => setMobileMenuOpen(false)} />
+          <div className="mt-auto pb-8 space-y-4">
+            <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+              <label className="text-xs text-slate-400 block mb-1">Tasa USD (COP)</label>
+              <div className="w-full bg-slate-950/50 border border-slate-700 rounded px-2 py-1 text-sm text-right font-mono text-indigo-400">
+                {new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2 }).format(data.settings.usdToCopRate)}
+              </div>
+            </div>
+            <button onClick={logout} className="flex items-center gap-3 px-4 py-3 text-red-400 bg-red-900/10 rounded-lg w-full">
+              <LogOut size={20} /> Cerrar Sesión
+            </button>
+          </div>
         </div>
       )}
 
