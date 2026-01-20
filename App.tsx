@@ -1252,7 +1252,7 @@ const Layout = () => {
         </nav>
         <div className="p-4 border-t border-slate-800 space-y-4">
           <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
-            <label className="text-xs text-slate-400 block mb-1">Tasa USD (COP) - Auto</label>
+            <label className="text-xs text-slate-400 block mb-1">Tasa USD/COP</label>
             <div className="w-full bg-slate-950/50 border border-slate-700 rounded px-2 py-1 text-sm text-right font-mono text-indigo-400">
               {new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2 }).format(data.settings.usdToCopRate)}
             </div>
@@ -1277,7 +1277,7 @@ const Layout = () => {
           <NavItem to="/performance" icon={<TrendingUp size={20} />} label="Rendimiento" onClick={() => setMobileMenuOpen(false)} />
           <div className="mt-auto pb-8 space-y-4">
             <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
-              <label className="text-xs text-slate-400 block mb-1">Tasa USD (COP)</label>
+              <label className="text-xs text-slate-400 block mb-1">Tasa USD/COP</label>
               <div className="w-full bg-slate-950/50 border border-slate-700 rounded px-2 py-1 text-sm text-right font-mono text-indigo-400">
                 {new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2 }).format(data.settings.usdToCopRate)}
               </div>
