@@ -77,7 +77,7 @@ export const api = {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + window.location.pathname
+          redirectTo: (window.location.origin + window.location.pathname).replace(/\/?$/, '/')
         }
       });
       if (error) throw error;

@@ -1222,7 +1222,7 @@ export default function App() {
   return (
     <AuthContext.Provider value={authContext}>
       <BudgetContext.Provider value={budgetContext}>
-        <Router>
+        <Router basename={(import.meta as any).env.MODE === 'production' ? '/smartfi/' : '/'}>
           <Routes>
             <Route path="/set-password" element={<UpdatePasswordPage />} />
             <Route path="*" element={!user ? <AuthPage /> : <Layout />} />
