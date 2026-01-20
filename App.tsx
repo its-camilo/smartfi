@@ -854,9 +854,9 @@ const AccountsPage = () => {
               <option value={Currency.USD}>USD</option>
             </select>
           </div>
-          <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" type="number" placeholder="Saldo Inicial" value={newAccount.balance} onChange={e => setNewAccount({ ...newAccount, balance: Number(e.target.value) })} />
+          <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" type="number" step="0.01" placeholder="Saldo Inicial" value={newAccount.balance} onChange={e => setNewAccount({ ...newAccount, balance: Number(e.target.value) })} />
           {newAccount.type === AccountType.CREDIT && (
-            <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" type="number" placeholder="Cupo Total" value={newAccount.creditLimit || ''} onChange={e => setNewAccount({ ...newAccount, creditLimit: Number(e.target.value) })} />
+            <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" type="number" step="0.01" placeholder="Cupo Total" value={newAccount.creditLimit || ''} onChange={e => setNewAccount({ ...newAccount, creditLimit: Number(e.target.value) })} />
           )}
           <div>
             <label className="text-xs text-slate-400 mb-1 block">Etiqueta/Categoría (Ej: Renta Fija - CDT)</label>
@@ -870,12 +870,12 @@ const AccountsPage = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs text-slate-400 mb-1 block">Nuevo Saldo / Deuda Actual</label>
-            <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-lg font-mono" type="number" value={txForm.newBalance} onChange={e => setTxForm({ ...txForm, newBalance: e.target.value })} />
+            <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-lg font-mono" type="number" step="0.01" value={txForm.newBalance} onChange={e => setTxForm({ ...txForm, newBalance: e.target.value })} />
           </div>
           {selectedItem?.type === 'account' && data.accounts.find(a => a.id === selectedItem.id)?.type === AccountType.CREDIT && (
             <div>
               <label className="text-xs text-slate-400 mb-1 block">Nuevo Cupo (Opcional)</label>
-              <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white font-mono" type="number" value={txForm.newCreditLimit} onChange={e => setTxForm({ ...txForm, newCreditLimit: e.target.value })} />
+              <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white font-mono" type="number" step="0.01" value={txForm.newCreditLimit} onChange={e => setTxForm({ ...txForm, newCreditLimit: e.target.value })} />
             </div>
           )}
 
@@ -1458,7 +1458,7 @@ export default function App() {
       await Promise.all(promises);
     },
     updateUSDRate: (rate) => setData(p => ({ ...p, settings: { ...p.settings, usdToCopRate: rate } })),
-    getFormattedValue: (val, cur) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(val),
+    getFormattedValue: (val, cur) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val),
     convertValue: (val, from, to) => {
       if (from === to) return val;
       return from === Currency.USD ? val * data.settings.usdToCopRate : val / data.settings.usdToCopRate;
