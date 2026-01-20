@@ -42,6 +42,7 @@ interface AuthContextType {
   register: (email: string, username: string, p: string) => Promise<boolean>; // Returns true if pending confirmation
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (p: string) => Promise<void>;
+  updatePremiumStatus: (isPremium: boolean) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -81,7 +82,8 @@ const useBudget = () => {
   return context;
 };
 
-// --- GENERIC UI COMPONENTS ---
+const MAX_FREE_ACCOUNTS = 5;
+const MAX_FREE_GROUPS = 3;
 
 const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean; onClose: () => void; title: string; children?: React.ReactNode }) => {
   if (!isOpen) return null;
@@ -119,6 +121,86 @@ const TimeRangeSelector = ({ current, onChange }: { current: string, onChange: (
 );
 
 // --- PAGES ---
+
+const PremiumModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  const { updatePremiumStatus } = useAuth();
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleCodeSubmit = async () => {
+    setError('');
+    const secretCode = (import.meta as any).env.VITE_PREMIUM_CODE || 'SMARTFI-PRO-2026';
+    if (code === secretCode) {
+      setLoading(true);
+      try {
+        await updatePremiumStatus(true);
+        alert("¡Felicidades! Ahora eres SmartFi Pro para siempre.");
+        onClose();
+        window.location.reload();
+      } catch (err) {
+        setError("Error al activar. Inténtalo de nuevo.");
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setError("Código inválido. Verifica e intenta de nuevo.");
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Mejora a SmartFi Pro 🚀">
+      <div className="space-y-6 text-center py-4">
+        <div className="bg-indigo-500/10 p-4 rounded-xl border border-indigo-500/20">
+          <h4 className="font-bold text-indigo-400 mb-2">Beneficios Premium</h4>
+          <ul className="text-sm text-slate-300 space-y-2 text-left list-disc list-inside">
+            <li>Cuentas ilimitadas (más de 5)</li>
+            <li>Grupos ilimitados (más de 3)</li>
+          </ul>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm text-slate-400">Suscríbete mensualmente</p>
+          <a
+            href={(import.meta as any).env.VITE_PAYPAL_SUBSCRIPTION_URL || "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <Wallet size={20} /> Suscribirse ($4.99/mes)
+          </a>
+        </div>
+
+        <div className="relative py-4">
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-slate-700"></div>
+          <span className="relative z-10 bg-slate-800 px-4 text-xs text-slate-500 uppercase">O usa un código de acceso</span>
+        </div>
+
+        <div className="space-y-3">
+          <input
+            type="text"
+            placeholder="Introduce tu código Pro"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            className="w-full bg-slate-900 border border-slate-700 rounded p-3 text-white text-center font-mono tracking-widest focus:border-indigo-500 outline-none"
+          />
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <button
+            onClick={handleCodeSubmit}
+            disabled={loading || !code}
+            className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="animate-spin mx-auto" size={20} /> : "Activar Acceso de por Vida"}
+          </button>
+        </div>
+
+        <p className="text-[10px] text-slate-500 mt-4 leading-relaxed">
+          Los pagos por PayPal se activan automáticamente. Si pagas por otros medios (Wise, Crypto), contacta a soporte para tu código.
+        </p>
+      </div>
+    </Modal>
+  );
+};
 
 const SetupPage = () => (
   <div className="min-h-screen bg-slate-950 flex items-center justify-center p-8">
@@ -800,6 +882,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
   const [isConfigured, setIsConfigured] = useState(true);
+  const [premiumModalOpen, setPremiumModalOpen] = useState(false);
 
   // Check Supabase Configuration
   useEffect(() => {
@@ -811,6 +894,18 @@ export default function App() {
     if (!isConfigured) {
       setAuthLoading(false);
       return;
+    }
+
+    // Detect PayPal payment success
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      api.auth.getUser().then(async u => {
+        if (u && !u.isPremium) {
+          await api.auth.updatePremiumStatus(true);
+          alert("¡Pago procesado con éxito! Tu cuenta ahora es SmartFi Pro.");
+          window.location.href = "https://its-camilo.github.io/smartfi/"; // Clean URL to prod
+        }
+      });
     }
 
     api.auth.getUser().then(u => {
@@ -880,6 +975,10 @@ export default function App() {
     updatePassword: async (p) => {
       await api.auth.updatePassword(p);
     },
+    updatePremiumStatus: async (isPremium: boolean) => {
+      await api.auth.updatePremiumStatus(isPremium);
+      if (user) setUser({ ...user, isPremium });
+    },
     logout: async () => {
       await api.auth.logout();
       setUser(null);
@@ -892,6 +991,13 @@ export default function App() {
     refresh: refreshData,
     addAccount: async (acc) => {
       if (!user) return;
+
+      // Premium check
+      if (data.accounts.length >= MAX_FREE_ACCOUNTS && !user.isPremium) {
+        setPremiumModalOpen(true);
+        return;
+      }
+
       const accWithUser = { ...acc, userId: user.id };
       // Optimistic UI
       setData(p => ({ ...p, accounts: [...p.accounts, accWithUser] }));
@@ -913,6 +1019,13 @@ export default function App() {
     },
     addGroup: async (grp) => {
       if (!user) return;
+
+      // Premium check
+      if (data.groups.length >= MAX_FREE_GROUPS && !user.isPremium) {
+        setPremiumModalOpen(true);
+        return;
+      }
+
       const grpWithUser = { ...grp, userId: user.id };
       setData(p => ({ ...p, groups: [...p.groups, grpWithUser] }));
       await api.data.createGroup(grpWithUser);
@@ -960,6 +1073,7 @@ export default function App() {
             <Route path="/set-password" element={<UpdatePasswordPage />} />
             <Route path="*" element={!user ? <AuthPage /> : <Layout />} />
           </Routes>
+          <PremiumModal isOpen={premiumModalOpen} onClose={() => setPremiumModalOpen(false)} />
         </Router>
       </BudgetContext.Provider>
     </AuthContext.Provider>

@@ -42,6 +42,7 @@ export interface Group {
 export interface UserProfile {
   id: string;
   username: string;
+  isPremium: boolean;
 }
 
 export interface AppData {

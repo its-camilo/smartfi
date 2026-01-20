@@ -11,7 +11,8 @@ export const api = {
       if (error) throw error;
       return {
         id: data.user.id,
-        username: data.user.user_metadata?.username || email.split('@')[0]
+        username: data.user.user_metadata?.username || email.split('@')[0],
+        isPremium: !!data.user.user_metadata?.isPremium
       };
     },
     register: async (email: string, username: string, password: string) => {
@@ -19,7 +20,7 @@ export const api = {
         email,
         password,
         options: {
-          data: { username }
+          data: { username, isPremium: false }
         }
       });
       if (error) throw error;
@@ -28,12 +29,13 @@ export const api = {
       return {
         id: data.user.id,
         username: username,
+        isPremium: false,
         pendingConfirmation: data.session === null
       };
     },
     resetPassword: async (email: string) => {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + '/set-password',
+        redirectTo: 'https://its-camilo.github.io/smartfi/set-password',
       });
       if (error) throw error;
     },
@@ -41,12 +43,19 @@ export const api = {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
     },
+    updatePremiumStatus: async (isPremium: boolean) => {
+      const { error } = await supabase.auth.updateUser({
+        data: { isPremium }
+      });
+      if (error) throw error;
+    },
     getUser: async () => {
       const { data } = await supabase.auth.getUser();
       if (data?.user) {
         return {
           id: data.user.id,
-          username: data.user.user_metadata?.username || data.user.email?.split('@')[0] || 'Usuario'
+          username: data.user.user_metadata?.username || data.user.email?.split('@')[0] || 'Usuario',
+          isPremium: !!data.user.user_metadata?.isPremium
         };
       }
       return null;
@@ -56,7 +65,8 @@ export const api = {
         if (session?.user) {
           callback({
             id: session.user.id,
-            username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'Usuario'
+            username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'Usuario',
+            isPremium: !!session.user.user_metadata?.isPremium
           });
         } else {
           callback(null);
