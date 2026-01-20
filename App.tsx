@@ -71,6 +71,8 @@ interface BudgetContextType {
   getFormattedValue: (value: number, currency: Currency) => string;
   convertValue: (value: number, from: Currency, to: Currency) => number;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
+  setPremiumModalOpen: (open: boolean) => void;
+  user: UserProfile | null;
 }
 
 const BudgetContext = createContext<BudgetContextType | undefined>(undefined);
@@ -89,8 +91,8 @@ const useBudget = () => {
   return context;
 };
 
-const MAX_FREE_ACCOUNTS = 5;
-const MAX_FREE_GROUPS = 3;
+const MAX_FREE_ACCOUNTS = 3;
+const MAX_FREE_GROUPS = 1;
 
 const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean; onClose: () => void; title: string; children?: React.ReactNode }) => {
   if (!isOpen) return null;
@@ -161,9 +163,10 @@ const PremiumModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
         <div className="bg-indigo-500/10 p-4 rounded-xl border border-indigo-500/20">
           <h4 className="font-bold text-indigo-400 mb-2">Beneficios Premium</h4>
           <ul className="text-sm text-slate-300 space-y-2 text-left list-disc list-inside">
-            <li>Cuentas ilimitadas (más de 5)</li>
-            <li>Grupos ilimitados (más de 3)</li>
-            <li>Estrategia Bola de Nieve</li>
+            <li>Cuentas ilimitadas (más de 3)</li>
+            <li>Grupos ilimitados (más de 1)</li>
+            <li>Analisis de Rendimiento y Bola de Nieve</li>
+            <li>Categorias y Etiquetas jerarquicas</li>
           </ul>
         </div>
 
@@ -565,7 +568,7 @@ const Dashboard = () => {
 };
 
 const AccountsPage = () => {
-  const { data, setData, addAccount, updateAccount, deleteAccount, addGroup, updateGroup, deleteGroup, addTransaction, getFormattedValue, convertValue } = useBudget();
+  const { data, setData, user, setPremiumModalOpen, addAccount, updateAccount, deleteAccount, addGroup, updateGroup, deleteGroup, addTransaction, getFormattedValue, convertValue } = useBudget();
 
   // Modals State
   const [modals, setModals] = useState({ group: false, account: false, tx: false, edit: false });
@@ -745,18 +748,22 @@ const AccountsPage = () => {
         <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
           <h3 className="text-lg font-semibold text-slate-300 mb-4">Sin Grupo</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {data.accounts.filter(a => !a.groupId).sort((a, b) => a.sortOrder - b.sortOrder).map(acc => (
-              <AccountCard
-                key={acc.id}
-                account={acc}
-                onUpdate={() => openTxModal(acc.id)}
-                onEdit={() => { setSelectedItem({ type: 'account', id: acc.id }); setModals(m => ({ ...m, edit: true })); }}
-                onDelete={() => deleteAccount(acc.id)}
-                onMoveUp={() => handleMoveAccount(acc.id, 'up')}
-                onMoveDown={() => handleMoveAccount(acc.id, 'down')}
-                format={getFormattedValue}
-              />
-            ))}
+            {data.accounts.filter(a => !a.groupId).sort((a, b) => a.sortOrder - b.sortOrder).map((acc, index) => {
+              const isLocked = !user?.isPremium && index >= MAX_FREE_ACCOUNTS;
+              return (
+                <AccountCard
+                  key={acc.id}
+                  account={acc}
+                  isLocked={isLocked}
+                  onUpdate={isLocked ? () => setPremiumModalOpen(true) : () => openTxModal(acc.id)}
+                  onEdit={isLocked ? () => setPremiumModalOpen(true) : () => { setSelectedItem({ type: 'account', id: acc.id }); setModals(m => ({ ...m, edit: true })); }}
+                  onDelete={isLocked ? () => setPremiumModalOpen(true) : () => deleteAccount(acc.id)}
+                  onMoveUp={isLocked ? undefined : () => handleMoveAccount(acc.id, 'up')}
+                  onMoveDown={isLocked ? undefined : () => handleMoveAccount(acc.id, 'down')}
+                  format={getFormattedValue}
+                />
+              );
+            })}
           </div>
         </div>
       )}
@@ -769,8 +776,17 @@ const AccountsPage = () => {
           return acc.type === AccountType.CREDIT ? sum - v : sum + v;
         }, 0);
 
+        const isGroupLocked = !user?.isPremium && data.groups.sort((a, b) => a.sortOrder - b.sortOrder).findIndex(g => g.id === group.id) >= MAX_FREE_GROUPS;
+
         return (
-          <div key={group.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div key={group.id} className={`bg-slate-800 rounded-xl border border-slate-700 overflow-hidden transition-all ${isGroupLocked ? 'opacity-50 grayscale pointer-events-none select-none relative' : ''}`}>
+            {isGroupLocked && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/40 backdrop-blur-[1px]">
+                <div className="bg-slate-800 border border-slate-700 p-3 rounded-lg shadow-xl flex items-center gap-2 text-amber-500 font-bold pointer-events-auto">
+                  <AlertTriangle size={18} /> Bloqueado (SmartFi Pro)
+                </div>
+              </div>
+            )}
             <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-700/30">
               <div className="flex items-center gap-4">
                 <div className="flex flex-col gap-1 mr-2 border-r border-slate-700 pr-3">
@@ -789,18 +805,24 @@ const AccountsPage = () => {
               </div>
             </div>
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {groupAccs.map(acc => (
-                <AccountCard
-                  key={acc.id}
-                  account={acc}
-                  onUpdate={() => openTxModal(acc.id)}
-                  onEdit={() => { setSelectedItem({ type: 'account', id: acc.id }); setModals(m => ({ ...m, edit: true })); }}
-                  onDelete={() => deleteAccount(acc.id)}
-                  onMoveUp={() => handleMoveAccount(acc.id, 'up')}
-                  onMoveDown={() => handleMoveAccount(acc.id, 'down')}
-                  format={getFormattedValue}
-                />
-              ))}
+              {groupAccs.map((acc, index) => {
+                const isGroupLocked = !user?.isPremium && data.groups.sort((a, b) => a.sortOrder - b.sortOrder).findIndex(g => g.id === group.id) >= MAX_FREE_GROUPS;
+                const isAccountLocked = isGroupLocked || (!user?.isPremium && index >= MAX_FREE_ACCOUNTS);
+
+                return (
+                  <AccountCard
+                    key={acc.id}
+                    account={acc}
+                    isLocked={isAccountLocked}
+                    onUpdate={isAccountLocked ? () => setPremiumModalOpen(true) : () => openTxModal(acc.id)}
+                    onEdit={isAccountLocked ? () => setPremiumModalOpen(true) : () => { setSelectedItem({ type: 'account', id: acc.id }); setModals(m => ({ ...m, edit: true })); }}
+                    onDelete={isAccountLocked ? () => setPremiumModalOpen(true) : () => deleteAccount(acc.id)}
+                    onMoveUp={isAccountLocked ? undefined : () => handleMoveAccount(acc.id, 'up')}
+                    onMoveDown={isAccountLocked ? undefined : () => handleMoveAccount(acc.id, 'down')}
+                    format={getFormattedValue}
+                  />
+                );
+              })}
               {groupAccs.length === 0 && <p className="text-slate-500 text-sm italic">Grupo vacío.</p>}
             </div>
           </div>
@@ -915,13 +937,24 @@ const AccountsPage = () => {
   );
 };
 
-const AccountCard = ({ account, onUpdate, onEdit, onDelete, onMoveUp, onMoveDown, format }: any) => (
-  <div className="bg-slate-700/50 hover:bg-slate-700 transition-colors rounded-lg p-4 border border-slate-600 relative group">
+const AccountCard = ({ account, onUpdate, onEdit, onDelete, onMoveUp, onMoveDown, format, isLocked }: any) => (
+  <div className={`bg-slate-700/50 hover:bg-slate-700 transition-colors rounded-lg p-4 border border-slate-600 relative group ${isLocked ? 'opacity-60 grayscale' : ''}`}>
+    {isLocked && (
+      <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+        <div className="bg-slate-800/90 border border-slate-600 px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 text-amber-500 text-[10px] font-bold uppercase tracking-wider">
+          <AlertTriangle size={14} /> Pro
+        </div>
+      </div>
+    )}
     <div className="flex justify-between items-start mb-2">
       <div className="flex items-center gap-2">
         <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onMoveUp} className="text-slate-500 hover:text-white"><ArrowUp size={12} /></button>
-          <button onClick={onMoveDown} className="text-slate-500 hover:text-white"><ArrowDown size={12} /></button>
+          {!isLocked && (
+            <>
+              <button onClick={onMoveUp} className="text-slate-500 hover:text-white"><ArrowUp size={12} /></button>
+              <button onClick={onMoveDown} className="text-slate-500 hover:text-white"><ArrowDown size={12} /></button>
+            </>
+          )}
         </div>
         <div>
           <h4 className="font-bold text-white truncate max-w-[150px]">{account.name}</h4>
@@ -948,11 +981,13 @@ const AccountCard = ({ account, onUpdate, onEdit, onDelete, onMoveUp, onMoveDown
     </div>
     <div className="flex gap-2">
       <button onClick={onUpdate} className="flex-1 bg-slate-800 hover:bg-slate-900 text-slate-200 text-xs py-2 rounded border border-slate-600 flex justify-center items-center gap-2">
-        <ArrowRightLeft size={12} /> Actualizar
+        <ArrowRightLeft size={12} /> {isLocked ? 'Bloqueado' : 'Actualizar'}
       </button>
-      <button onClick={onDelete} className="px-3 bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded border border-red-900/50">
-        <Trash2 size={14} />
-      </button>
+      {!isLocked && (
+        <button onClick={onDelete} className="px-3 bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded border border-red-900/50">
+          <Trash2 size={14} />
+        </button>
+      )}
     </div>
   </div>
 );
@@ -1428,7 +1463,9 @@ export default function App() {
       if (from === to) return val;
       return from === Currency.USD ? val * data.settings.usdToCopRate : val / data.settings.usdToCopRate;
     },
-    setData: setData
+    setData: setData,
+    setPremiumModalOpen: setPremiumModalOpen,
+    user: user
   };
 
   if (!isConfigured) return <SetupPage />;
