@@ -70,6 +70,7 @@ interface BudgetContextType {
   updateUSDRate: (rate: number) => void;
   getFormattedValue: (value: number, currency: Currency) => string;
   convertValue: (value: number, from: Currency, to: Currency) => number;
+  setData: React.Dispatch<React.SetStateAction<AppData>>;
 }
 
 const BudgetContext = createContext<BudgetContextType | undefined>(undefined);
@@ -564,7 +565,7 @@ const Dashboard = () => {
 };
 
 const AccountsPage = () => {
-  const { data, addAccount, updateAccount, deleteAccount, addGroup, updateGroup, deleteGroup, addTransaction, getFormattedValue, convertValue } = useBudget();
+  const { data, setData, addAccount, updateAccount, deleteAccount, addGroup, updateGroup, deleteGroup, addTransaction, getFormattedValue, convertValue } = useBudget();
 
   // Modals State
   const [modals, setModals] = useState({ group: false, account: false, tx: false, edit: false });
@@ -654,41 +655,71 @@ const AccountsPage = () => {
   };
 
   const handleMoveAccount = async (id: string, direction: 'up' | 'down') => {
+    const groupAccs = [...data.accounts].sort((a, b) => {
+      const groupA = data.accounts.find(x => x.id === a.id)?.groupId;
+      const groupB = data.accounts.find(x => x.id === b.id)?.groupId;
+      if (groupA !== groupB) return 0;
+      return a.sortOrder - b.sortOrder;
+    });
+
     const acc = data.accounts.find(a => a.id === id);
     if (!acc) return;
-    const groupAccs = data.accounts.filter(a => a.groupId === acc.groupId).sort((a, b) => a.sortOrder - b.sortOrder);
-    const index = groupAccs.findIndex(a => a.id === id);
-    if (direction === 'up' && index > 0) {
-      const prev = groupAccs[index - 1];
+
+    const siblings = data.accounts
+      .filter(a => a.groupId === acc.groupId)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+
+    const index = siblings.findIndex(a => a.id === id);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+
+    if (targetIndex >= 0 && targetIndex < siblings.length) {
+      const other = siblings[targetIndex];
+      const newOrderSelf = other.sortOrder === acc.sortOrder ? (direction === 'up' ? acc.sortOrder - 1 : acc.sortOrder + 1) : other.sortOrder;
+      const newOrderOther = acc.sortOrder;
+
+      // Single state update for immediate feedback
+      setData(prev => ({
+        ...prev,
+        accounts: prev.accounts.map(a => {
+          if (a.id === id) return { ...a, sortOrder: newOrderSelf };
+          if (a.id === other.id) return { ...a, sortOrder: newOrderOther };
+          return a;
+        })
+      }));
+
+      // Background API sync
       await Promise.all([
-        updateAccount(acc.id, { sortOrder: prev.sortOrder }),
-        updateAccount(prev.id, { sortOrder: acc.sortOrder })
-      ]);
-    } else if (direction === 'down' && index < groupAccs.length - 1) {
-      const next = groupAccs[index + 1];
-      await Promise.all([
-        updateAccount(acc.id, { sortOrder: next.sortOrder }),
-        updateAccount(next.id, { sortOrder: acc.sortOrder })
+        api.data.updateAccount(id, { sortOrder: newOrderSelf }),
+        api.data.updateAccount(other.id, { sortOrder: newOrderOther })
       ]);
     }
   };
 
   const handleMoveGroup = async (id: string, direction: 'up' | 'down') => {
-    const groups = [...data.groups].sort((a, b) => a.sortOrder - b.sortOrder);
-    const index = groups.findIndex(g => g.id === id);
-    if (direction === 'up' && index > 0) {
-      const g = groups[index];
-      const prev = groups[index - 1];
+    const siblings = [...data.groups].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+    const index = siblings.findIndex(g => g.id === id);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+
+    if (targetIndex >= 0 && targetIndex < siblings.length) {
+      const g = siblings[index];
+      const other = siblings[targetIndex];
+      const newOrderSelf = other.sortOrder === g.sortOrder ? (direction === 'up' ? g.sortOrder - 1 : g.sortOrder + 1) : other.sortOrder;
+      const newOrderOther = g.sortOrder;
+
+      // Single state update
+      setData(prev => ({
+        ...prev,
+        groups: prev.groups.map(item => {
+          if (item.id === id) return { ...item, sortOrder: newOrderSelf };
+          if (item.id === other.id) return { ...item, sortOrder: newOrderOther };
+          return item;
+        })
+      }));
+
+      // Sync
       await Promise.all([
-        updateGroup(g.id, { sortOrder: prev.sortOrder }),
-        updateGroup(prev.id, { sortOrder: g.sortOrder })
-      ]);
-    } else if (direction === 'down' && index < groups.length - 1) {
-      const g = groups[index];
-      const next = groups[index + 1];
-      await Promise.all([
-        updateGroup(g.id, { sortOrder: next.sortOrder }),
-        updateGroup(next.id, { sortOrder: g.sortOrder })
+        api.data.updateGroup(id, { sortOrder: newOrderSelf }),
+        api.data.updateGroup(other.id, { sortOrder: newOrderOther })
       ]);
     }
   };
@@ -1344,7 +1375,8 @@ export default function App() {
     convertValue: (val, from, to) => {
       if (from === to) return val;
       return from === Currency.USD ? val * data.settings.usdToCopRate : val / data.settings.usdToCopRate;
-    }
+    },
+    setData: setData
   };
 
   if (!isConfigured) return <SetupPage />;
