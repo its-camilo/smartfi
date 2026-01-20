@@ -1391,7 +1391,7 @@ export default function App() {
     addAccount: async (acc) => {
       if (!user) return;
 
-      // Premium check
+      // Premium checks
       if (data.accounts.length >= MAX_FREE_ACCOUNTS && !user.isPremium) {
         setPremiumModalOpen(true);
         return;
