@@ -512,23 +512,51 @@ const Dashboard = () => {
   }, [data, convertValue]);
 
   // Simplified Chart Logic
+  // Historical Trend Reconstruction
   const chartData = useMemo(() => {
+    const points = [];
     const start = new Date(PROJECT_START_DATE);
     const now = new Date();
-    const points = [];
-    let currentNetWorth = metrics.netWorth;
+
+    // 1. Initial State (Current)
+    let curLiq = metrics.liquidity;
+    let curLiabilities = metrics.totalLiabilities;
+    let curLimit = metrics.creditLimitTotal;
+
+    // 2. Walk backwards through transactions
+    const sortedTxs = [...data.transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    let txIdx = 0;
 
     const diffTime = Math.abs(now.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
     for (let i = 0; i < diffDays; i++) {
+      const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i).getTime();
+
+      // Points represent the state at the BEGINNING of the day
+      // So we subtract transactions that happened on or after this day's start
+      while (txIdx < sortedTxs.length && new Date(sortedTxs[txIdx].date).getTime() >= dayStart) {
+        const tx = sortedTxs[txIdx];
+        const acc = data.accounts.find(a => a.id === tx.accountId);
+        const amountCOP = tx.exchangeRateUsed ? tx.amount * tx.exchangeRateUsed : tx.amount;
+
+        if (acc?.type === AccountType.CREDIT) {
+          curLiabilities -= amountCOP;
+        } else {
+          curLiq -= amountCOP;
+        }
+        txIdx++;
+      }
+
       points.unshift({
-        date: new Date(now.getTime() - i * 24 * 60 * 60 * 1000).getTime(),
-        netWorth: currentNetWorth,
+        date: dayStart,
+        netWorth: curLiq - curLiabilities,
+        liquidity: curLiq,
+        buyingPower: curLiq + (curLimit - curLiabilities)
       });
     }
     return points;
-  }, [metrics, data.accounts]);
+  }, [data, metrics]);
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
@@ -551,15 +579,29 @@ const Dashboard = () => {
           <ComposedChart data={chartData}>
             <defs>
               <linearGradient id="colorNetWorth" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                <stop offset="5%" stopColor="#ffffff" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#ffffff" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="colorLiquidity" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="colorBuyingPower" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
                 <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <XAxis dataKey="date" tickFormatter={(d) => new Date(d).toLocaleDateString()} stroke="#64748b" fontSize={12} />
-            <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `$${(v / 1000000).toFixed(0)}M`} />
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9' }} labelFormatter={(l) => new Date(l).toLocaleDateString()} />
-            <Area type="monotone" dataKey="netWorth" stroke="#3b82f6" fillOpacity={1} fill="url(#colorNetWorth)" />
+            <XAxis dataKey="date" tickFormatter={(d) => new Date(d).toLocaleDateString()} stroke="#64748b" fontSize={10} />
+            <YAxis stroke="#64748b" fontSize={10} tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+            <Tooltip
+              contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9' }}
+              labelFormatter={(l) => new Date(l).toLocaleDateString()}
+              formatter={(v: any) => getFormattedValue(v, Currency.COP)}
+            />
+            <Area type="monotone" dataKey="netWorth" stroke="#ffffff" fill="url(#colorNetWorth)" strokeWidth={2} name="Patrimonio Neto" />
+            <Area type="monotone" dataKey="liquidity" stroke="#10b981" fill="url(#colorLiquidity)" strokeWidth={2} name="Liquidez" />
+            <Area type="monotone" dataKey="buyingPower" stroke="#3b82f6" fill="url(#colorBuyingPower)" strokeWidth={2} name="Poder de Compra" />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -859,8 +901,8 @@ const AccountsPage = () => {
             <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" type="number" step="0.01" placeholder="Cupo Total" value={newAccount.creditLimit || ''} onChange={e => setNewAccount({ ...newAccount, creditLimit: Number(e.target.value) })} />
           )}
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Etiqueta/Categoría (Ej: Renta Fija - CDT)</label>
-            <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" placeholder="Sin Categoría" value={newAccount.category} onChange={e => setNewAccount({ ...newAccount, category: e.target.value })} />
+            <label className="text-xs text-slate-400 mb-1 block">Etiqueta (Ej: CDTs, Ahorros, Viajes)</label>
+            <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" placeholder="Sin Etiqueta" value={newAccount.category} onChange={e => setNewAccount({ ...newAccount, category: e.target.value })} />
           </div>
           <button onClick={handleCreateAccount} className="w-full bg-indigo-600 py-2 rounded text-white">Crear</button>
         </div>
@@ -900,7 +942,7 @@ const AccountsPage = () => {
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">Categoría/Etiqueta</label>
+                <label className="text-xs text-slate-400 mb-1 block">Etiqueta</label>
                 <input
                   className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
                   defaultValue={data.accounts.find(a => a.id === selectedItem?.id)?.category}
@@ -996,13 +1038,22 @@ const PerformancePage = () => {
   const { user } = useAuth();
   const { data, convertValue, getFormattedValue } = useBudget();
   const [timeRange, setTimeRange] = useState('ALL');
-  const [dimension, setDimension] = useState<'GENERAL' | 'GROUP' | 'CATEGORY' | 'SUB'>('GENERAL');
+  const [dimension, setDimension] = useState<'GENERAL' | 'GROUP' | 'CATEGORY'>('GENERAL');
+  const [filterId, setFilterId] = useState('ALL');
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
 
   const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
   const stats = useMemo(() => {
-    if (!data.transactions.length) return { ea: 0, projections: [], groups: [] };
+    // 1. Identify Accounts in scope
+    let inScopeAccs = data.accounts;
+    if (dimension === 'GROUP' && filterId !== 'ALL') inScopeAccs = data.accounts.filter(a => a.groupId === filterId);
+    if (dimension === 'CATEGORY' && filterId !== 'ALL') inScopeAccs = data.accounts.filter(a => a.category === filterId);
+
+    const accIds = inScopeAccs.map(a => a.id);
+    const rangeTxs = data.transactions.filter(t => accIds.includes(t.accountId));
+
+    if (!rangeTxs.length && inScopeAccs.length === 0) return { ea: 0, normal: 0, projections: [], currentVal: 0 };
 
     const now = new Date();
     let startDate = new Date();
@@ -1012,51 +1063,47 @@ const PerformancePage = () => {
     else if (timeRange === '1Y') startDate.setFullYear(now.getFullYear() - 1);
     else startDate = new Date(PROJECT_START_DATE);
 
-    const rangeTxs = data.transactions.filter(t => new Date(t.date) >= startDate);
-    if (rangeTxs.length < 2) return { ea: 0, projections: [], groups: [] };
+    // Filter relevant transactions for timing
+    const timelyTxs = rangeTxs.filter(t => new Date(t.date) >= startDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // --- 1. GENERAL SNOWBALL ---
-    const firstTx = rangeTxs.reduce((prev, curr) => new Date(prev.date) < new Date(curr.date) ? prev : curr);
-    const lastTx = rangeTxs.reduce((prev, curr) => new Date(prev.date) > new Date(curr.date) ? prev : curr);
-    const startValue = firstTx.newBalance;
-    const endValue = lastTx.newBalance;
-    const diffMs = new Date(lastTx.date).getTime() - new Date(firstTx.date).getTime();
+    // Calculate current filtered value
+    const currentVal = inScopeAccs.reduce((sum, acc) => {
+      const v = convertValue(acc.balance, acc.currency, Currency.COP);
+      return acc.type === AccountType.CREDIT ? sum - v : sum + v;
+    }, 0);
+
+    if (timelyTxs.length < 1 && inScopeAccs.length === 0) return { ea: 0, normal: 0, projections: [], currentVal };
+    if (timelyTxs.length < 1 && inScopeAccs.length > 0) { // No transactions in range, but accounts exist
+      return { ea: 0, normal: 0, projections: [], currentVal };
+    }
+
+    // Best way: startVal = Sum of (acc balances at firstPoint date)
+    // Since we don't have historical balances per account easily, we use the reconstruction.
+    let startVal = currentVal;
+    timelyTxs.forEach(tx => {
+      startVal -= (tx.exchangeRateUsed ? tx.amount * tx.exchangeRateUsed : tx.amount);
+    });
+
+    const endVal = currentVal;
+    const normal = startVal !== 0 ? (endVal / startVal) - 1 : 0;
+
+    const diffMs = now.getTime() - startDate.getTime();
     const years = diffMs / (1000 * 60 * 60 * 24 * 365);
-    const ea = startValue > 0 ? (Math.pow(endValue / startValue, 1 / (years || 1)) - 1) : 0;
+    const ea = startVal !== 0 ? (Math.pow(endVal / startVal, 1 / (years || 1)) - 1) : 0;
     const monthlyRate = Math.pow(1 + ea, 1 / 12) - 1;
 
     const projections = [3, 6, 12].map(months => ({
       label: `${months} meses`,
-      value: endValue * Math.pow(1 + monthlyRate, months)
+      value: endVal * Math.pow(1 + monthlyRate, months)
     }));
-
-    // --- 2. DIMENSIONAL ANALYSIS ---
-    const getDimensionKey = (account: Account) => {
-      if (dimension === 'GROUP') return data.groups.find(g => g.id === account.groupId)?.name || 'Sin Grupo';
-      if (dimension === 'CATEGORY') return account.category?.split(' - ')[0] || 'Sin Categoría';
-      if (dimension === 'SUB') return account.category || 'Sin Categoría';
-      return 'General';
-    };
-
-    const dimensionBalances: Record<string, number> = {};
-    data.accounts.forEach(acc => {
-      const key = getDimensionKey(acc);
-      const val = convertValue(acc.balance, acc.currency, Currency.COP);
-      dimensionBalances[key] = (dimensionBalances[key] || 0) + (acc.type === AccountType.CREDIT ? -val : val);
-    });
-
-    const groups = Object.entries(dimensionBalances)
-      .map(([name, value]) => ({ name, value }))
-      .filter(g => Math.abs(g.value) > 100) // Filter tiny amounts
-      .sort((a, b) => b.value - a.value);
 
     return {
       ea: ea * 100,
+      normal: normal * 100,
       projections,
-      currentNetWorth: endValue,
-      groups
+      currentVal
     };
-  }, [data.transactions, data.accounts, data.groups, timeRange, dimension]);
+  }, [data.transactions, data.accounts, data.groups, timeRange, dimension, filterId]);
 
   if (!user?.isPremium) {
     return (
@@ -1071,104 +1118,98 @@ const PerformancePage = () => {
   }
 
   const snowballChart = [
-    { name: 'Hoy', value: stats.currentNetWorth, isFuture: false },
+    { name: 'Hoy', value: stats.currentVal, isFuture: false },
     ...stats.projections.map(p => ({ name: p.label, value: p.value, isFuture: true }))
   ];
+
+  const filterOptions = useMemo(() => {
+    if (dimension === 'GROUP') return data.groups.map(g => ({ id: g.id, label: g.name }));
+    if (dimension === 'CATEGORY') {
+      const tags = Array.from(new Set(data.accounts.map(a => a.category).filter(Boolean)));
+      return tags.map(t => ({ id: t!, label: t! }));
+    }
+    return [];
+  }, [data, dimension]);
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Análisis de Rendimiento</h2>
-          <p className="text-sm text-slate-400">Nivel de análisis:
+          <h2 className="text-2xl font-bold text-white">Rendimiento Detallado</h2>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <span className="text-sm text-slate-500">Filtrar por:</span>
             <select
-              className="bg-transparent text-indigo-400 font-bold ml-1 focus:outline-none cursor-pointer"
+              className="bg-slate-900 border border-slate-700 text-indigo-400 font-bold rounded px-2 py-1 text-xs focus:outline-none"
               value={dimension}
-              onChange={e => setDimension(e.target.value as any)}
+              onChange={e => { setDimension(e.target.value as any); setFilterId('ALL'); }}
             >
-              <option value="GENERAL" className="bg-slate-900">Total General</option>
-              <option value="GROUP" className="bg-slate-900">Por Grupo</option>
-              <option value="CATEGORY" className="bg-slate-900">Por Categoría</option>
-              <option value="SUB" className="bg-slate-900">Por Etiqueta (Sub-categoría)</option>
+              <option value="GENERAL">Todo el Patrimonio</option>
+              <option value="GROUP">Por Grupo</option>
+              <option value="CATEGORY">Por Etiqueta</option>
             </select>
-          </p>
+
+            {dimension !== 'GENERAL' && (
+              <select
+                className="bg-slate-900 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                value={filterId}
+                onChange={e => setFilterId(e.target.value)}
+              >
+                <option value="ALL">Seleccionar {dimension === 'GROUP' ? 'Grupo' : 'Etiqueta'}...</option>
+                {filterOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+              </select>
+            )}
+          </div>
         </div>
         <div className="flex flex-col items-end gap-2">
           <TimeRangeSelector current={timeRange} onChange={setTimeRange} />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
-          <p className="text-slate-400 text-xs font-bold uppercase mb-1">Rendimiento Histórico %EA</p>
-          <h3 className="text-2xl font-bold text-indigo-400 font-mono">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+          <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Rendimiento Normal</p>
+          <h3 className={`text-xl font-bold font-mono ${stats.normal >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {stats.normal > 0 ? '+' : ''}{stats.normal.toFixed(2)}%
+          </h3>
+        </div>
+        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+          <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Efectivo Anual (%EA)</p>
+          <h3 className="text-xl font-bold text-indigo-400 font-mono">
             {stats.ea > 0 ? '+' : ''}{stats.ea.toFixed(2)}%
           </h3>
-          <p className="text-[10px] text-slate-500 mt-2">Promedio anualizado</p>
         </div>
         {stats.projections.map((p, i) => (
-          <div key={i} className="bg-slate-800 p-5 rounded-xl border border-slate-700">
-            <p className="text-slate-400 text-xs font-bold uppercase mb-1">Bola de Nieve - {p.label}</p>
-            <h3 className="text-xl font-bold text-emerald-400 font-mono">
+          <div key={i} className="bg-slate-800 p-4 rounded-xl border border-slate-700 lg:col-span-1">
+            <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Proy. {p.label}</p>
+            <h3 className="text-lg font-bold text-emerald-400 font-mono">
               {getFormattedValue(p.value, Currency.COP)}
             </h3>
-            <p className="text-[10px] text-slate-500 mt-2">Patrimonio estimado</p>
           </div>
         ))}
+        <div className="bg-slate-800 p-4 rounded-xl border border-indigo-500/30 lg:col-span-1">
+          <p className="text-indigo-400 text-[10px] font-bold uppercase mb-1">Valor Actual</p>
+          <h3 className="text-lg font-bold text-white font-mono">
+            {getFormattedValue(stats.currentVal, Currency.COP)}
+          </h3>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-          <h3 className="text-lg font-bold text-slate-100 mb-6">Proyección de Patrimonio Total</h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={snowballChart}>
-                <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
-                <YAxis stroke="#64748b" fontSize={12} tickFormatter={v => `$${(v / 1000000).toFixed(1)}M`} />
-                <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }} formatter={(v: any) => getFormattedValue(v, Currency.COP)} />
-                <Bar dataKey="value">
-                  {snowballChart.map((e, i) => <Cell key={i} fill={e.isFuture ? '#10b981' : '#3b82f6'} fillOpacity={e.isFuture ? 0.6 : 1} />)}
-                </Bar>
-                <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-          <h3 className="text-lg font-bold text-slate-100 mb-6">Distribución {dimension !== 'GENERAL' ? 'por ' + dimension : ''}</h3>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={stats.groups}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  innerRadius={60}
-                  stroke="none"
-                >
-                  {stats.groups.map((entry, index) => <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />)}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }} formatter={(v: any) => getFormattedValue(v, Currency.COP)} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-4 space-y-2 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar">
-            {stats.groups.map((g, i) => (
-              <div key={i} className="flex justify-between items-center text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors[i % colors.length] }}></div>
-                  <span className="text-slate-300 truncate max-w-[120px]">{g.name}</span>
-                </div>
-                <span className="text-slate-500 font-mono font-bold">
-                  {((g.value / stats.currentNetWorth) * 100).toFixed(1)}%
-                </span>
-              </div>
-            ))}
-          </div>
+      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+        <h3 className="text-lg font-bold text-slate-100 mb-6 flex items-center gap-2">
+          Gráfico de Bola de Nieve <span className="text-xs font-normal text-slate-500">(Basado en tendencia actual)</span>
+        </h3>
+        <div className="h-[350px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={snowballChart}>
+              <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
+              <YAxis stroke="#64748b" fontSize={11} tickFormatter={v => `$${(v / 1000000).toFixed(1)}M`} />
+              <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }} formatter={(v: any) => getFormattedValue(v, Currency.COP)} />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                {snowballChart.map((e, i) => <Cell key={i} fill={e.isFuture ? '#10b981' : '#3b82f6'} fillOpacity={e.isFuture ? 0.4 : 1} />)}
+              </Bar>
+              <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} dot={{ r: 6, fill: '#6366f1' }} />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
