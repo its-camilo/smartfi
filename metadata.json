@@ -1,0 +1,5 @@
+{
+  "name": "SmartFi Budget Tracker",
+  "description": "A comprehensive financial tracker supporting multiple accounts, currency conversion (USD/COP), and credit card management. Recommended Backend: Supabase (PostgreSQL) is highly recommended for this architecture due to the relational nature of Accounts, Groups, and Transactions.",
+  "requestFramePermissions": []
+}
