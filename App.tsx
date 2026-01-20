@@ -68,7 +68,7 @@ interface BudgetContextType {
 
 const BudgetContext = createContext<BudgetContextType | undefined>(undefined);
 
-// --- HOOKS ---
+// --- HOOKS USED ---
 
 const useAuth = () => {
   const context = useContext(AuthContext);
