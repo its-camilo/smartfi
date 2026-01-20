@@ -18,7 +18,8 @@ import {
   Trash2,
   LogOut,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Settings
 } from 'lucide-react';
 
 // Modules
@@ -562,7 +563,7 @@ const AccountsPage = () => {
   const { data, addAccount, updateAccount, deleteAccount, addGroup, deleteGroup, addTransaction, getFormattedValue, convertValue } = useBudget();
 
   // Modals State
-  const [modals, setModals] = useState({ group: false, account: false, tx: false });
+  const [modals, setModals] = useState({ group: false, account: false, tx: false, edit: false });
   const [selectedItem, setSelectedItem] = useState<{ type: 'account' | 'group', id: string } | null>(null);
 
   // Forms
@@ -636,6 +637,12 @@ const AccountsPage = () => {
     setModals(m => ({ ...m, tx: false }));
   };
 
+  const handleUpdateGroup = async (groupId: string | null) => {
+    if (!selectedItem || selectedItem.type !== 'account') return;
+    await updateAccount(selectedItem.id, { groupId });
+    setModals(m => ({ ...m, edit: false }));
+  };
+
   return (
     <div className="space-y-8 pb-10 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -656,7 +663,14 @@ const AccountsPage = () => {
           <h3 className="text-lg font-semibold text-slate-300 mb-4">Sin Grupo</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {data.accounts.filter(a => !a.groupId).map(acc => (
-              <AccountCard key={acc.id} account={acc} onUpdate={() => openTxModal(acc.id)} onDelete={() => deleteAccount(acc.id)} format={getFormattedValue} />
+              <AccountCard
+                key={acc.id}
+                account={acc}
+                onUpdate={() => openTxModal(acc.id)}
+                onEdit={() => { setSelectedItem({ type: 'account', id: acc.id }); setModals(m => ({ ...m, edit: true })); }}
+                onDelete={() => deleteAccount(acc.id)}
+                format={getFormattedValue}
+              />
             ))}
           </div>
         </div>
@@ -686,7 +700,14 @@ const AccountsPage = () => {
             </div>
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {groupAccs.map(acc => (
-                <AccountCard key={acc.id} account={acc} onUpdate={() => openTxModal(acc.id)} onDelete={() => deleteAccount(acc.id)} format={getFormattedValue} />
+                <AccountCard
+                  key={acc.id}
+                  account={acc}
+                  onUpdate={() => openTxModal(acc.id)}
+                  onEdit={() => { setSelectedItem({ type: 'account', id: acc.id }); setModals(m => ({ ...m, edit: true })); }}
+                  onDelete={() => deleteAccount(acc.id)}
+                  format={getFormattedValue}
+                />
               ))}
               {groupAccs.length === 0 && <p className="text-slate-500 text-sm italic">Grupo vacío.</p>}
             </div>
@@ -747,12 +768,28 @@ const AccountsPage = () => {
           <button onClick={handleUpdateBalance} className="w-full bg-indigo-600 py-2 rounded text-white">Guardar Transacción</button>
         </div>
       </Modal>
+
+      <Modal isOpen={modals.edit} onClose={() => setModals(m => ({ ...m, edit: false }))} title="Editar Cuenta">
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Mover a Grupo</label>
+            <select
+              className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+              value={data.accounts.find(a => a.id === selectedItem?.id)?.groupId || ''}
+              onChange={(e) => handleUpdateGroup(e.target.value || null)}
+            >
+              <option value="">Sin Grupo</option>
+              {data.groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
+          <p className="text-[10px] text-slate-500 italic">Selecciona un grupo para mover la cuenta automáticamente.</p>
+        </div>
+      </Modal>
     </div>
   );
 };
 
-// Simplified Account Card
-const AccountCard = ({ account, onUpdate, onDelete, format }: any) => (
+const AccountCard = ({ account, onUpdate, onEdit, onDelete, format }: any) => (
   <div className="bg-slate-700/50 hover:bg-slate-700 transition-colors rounded-lg p-4 border border-slate-600 relative group">
     <div className="flex justify-between items-start mb-2">
       <div>
@@ -764,6 +801,9 @@ const AccountCard = ({ account, onUpdate, onDelete, format }: any) => (
           {account.currency === Currency.USD && <span className="text-[10px] bg-amber-900 text-amber-200 px-2 py-0.5 rounded-full">USD</span>}
         </div>
       </div>
+      <button onClick={onEdit} className="text-slate-500 hover:text-indigo-400 p-1 transition-colors">
+        <Settings size={16} />
+      </button>
     </div>
     <div className="mt-3 mb-4">
       <p className="text-xs text-slate-400">{account.type === AccountType.CREDIT ? 'Deuda' : 'Saldo'}</p>
