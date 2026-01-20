@@ -35,7 +35,7 @@ import { isSupabaseConfigured } from './supabaseClient';
 import {
   ResponsiveContainer,
   XAxis, YAxis, CartesianGrid, AreaChart, Area, ComposedChart, Tooltip,
-  Bar, Cell, Line
+  Bar, Cell, Line, PieChart, Pie
 } from 'recharts';
 
 // --- AUTH CONTEXT ---
@@ -574,7 +574,7 @@ const AccountsPage = () => {
   // Forms
   const [newGroup, setNewGroup] = useState({ name: '' });
   const [newAccount, setNewAccount] = useState<Partial<Account>>({
-    name: '', type: AccountType.DEBIT, currency: Currency.COP, balance: 0, groupId: ''
+    name: '', type: AccountType.DEBIT, currency: Currency.COP, balance: 0, groupId: '', category: ''
   });
   const [txForm, setTxForm] = useState({ newBalance: '', newCreditLimit: '', date: new Date().toISOString().split('T')[0] });
 
@@ -598,7 +598,9 @@ const AccountsPage = () => {
       balance: Number(newAccount.balance),
       initialBalance: Number(newAccount.balance),
       creditLimit: newAccount.type === AccountType.CREDIT ? Number(newAccount.creditLimit) : undefined,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      sortOrder: 0,
+      category: newAccount.category || 'Sin Categoría'
     });
     setModals(m => ({ ...m, account: false }));
   };
@@ -834,6 +836,10 @@ const AccountsPage = () => {
           {newAccount.type === AccountType.CREDIT && (
             <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" type="number" placeholder="Cupo Total" value={newAccount.creditLimit || ''} onChange={e => setNewAccount({ ...newAccount, creditLimit: Number(e.target.value) })} />
           )}
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Etiqueta/Categoría (Ej: Renta Fija - CDT)</label>
+            <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" placeholder="Sin Categoría" value={newAccount.category} onChange={e => setNewAccount({ ...newAccount, category: e.target.value })} />
+          </div>
           <button onClick={handleCreateAccount} className="w-full bg-indigo-600 py-2 rounded text-white">Crear</button>
         </div>
       </Modal>
@@ -869,6 +875,14 @@ const AccountsPage = () => {
                   className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
                   defaultValue={data.accounts.find(a => a.id === selectedItem?.id)?.name}
                   onBlur={(e) => updateAccount(selectedItem.id, { name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Categoría/Etiqueta</label>
+                <input
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  defaultValue={data.accounts.find(a => a.id === selectedItem?.id)?.category}
+                  onBlur={(e) => updateAccount(selectedItem.id, { category: e.target.value })}
                 />
               </div>
               <div>
@@ -947,12 +961,14 @@ const PerformancePage = () => {
   const { user } = useAuth();
   const { data, convertValue, getFormattedValue } = useBudget();
   const [timeRange, setTimeRange] = useState('ALL');
+  const [dimension, setDimension] = useState<'GENERAL' | 'GROUP' | 'CATEGORY' | 'SUB'>('GENERAL');
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
 
-  const stats = useMemo(() => {
-    if (!data.transactions.length) return { ea: 0, projections: [] };
+  const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
-    // 1. Calculate historical metrics
+  const stats = useMemo(() => {
+    if (!data.transactions.length) return { ea: 0, projections: [], groups: [] };
+
     const now = new Date();
     let startDate = new Date();
     if (timeRange === '1M') startDate.setMonth(now.getMonth() - 1);
@@ -961,68 +977,65 @@ const PerformancePage = () => {
     else if (timeRange === '1Y') startDate.setFullYear(now.getFullYear() - 1);
     else startDate = new Date(PROJECT_START_DATE);
 
-    // Filter transactions in range
     const rangeTxs = data.transactions.filter(t => new Date(t.date) >= startDate);
-    if (rangeTxs.length < 2) return { ea: 0, projections: [] };
+    if (rangeTxs.length < 2) return { ea: 0, projections: [], groups: [] };
 
+    // --- 1. GENERAL SNOWBALL ---
     const firstTx = rangeTxs.reduce((prev, curr) => new Date(prev.date) < new Date(curr.date) ? prev : curr);
     const lastTx = rangeTxs.reduce((prev, curr) => new Date(prev.date) > new Date(curr.date) ? prev : curr);
-
     const startValue = firstTx.newBalance;
     const endValue = lastTx.newBalance;
-
     const diffMs = new Date(lastTx.date).getTime() - new Date(firstTx.date).getTime();
     const years = diffMs / (1000 * 60 * 60 * 24 * 365);
-
-    // CAGR (%EA)
     const ea = startValue > 0 ? (Math.pow(endValue / startValue, 1 / (years || 1)) - 1) : 0;
     const monthlyRate = Math.pow(1 + ea, 1 / 12) - 1;
 
-    // 2. Projections (Snowball)
-    const projections = [];
-    const currentNetWorth = endValue;
+    const projections = [3, 6, 12].map(months => ({
+      label: `${months} meses`,
+      value: endValue * Math.pow(1 + monthlyRate, months)
+    }));
 
-    // Future points: 3m, 6m, 12m
-    [3, 6, 12].forEach(months => {
-      const projectedValue = currentNetWorth * Math.pow(1 + monthlyRate, months);
-      projections.push({
-        label: `${months} meses`,
-        value: projectedValue,
-        date: new Date(now.getFullYear(), now.getMonth() + months, now.getDate()).getTime()
-      });
+    // --- 2. DIMENSIONAL ANALYSIS ---
+    const getDimensionKey = (account: Account) => {
+      if (dimension === 'GROUP') return data.groups.find(g => g.id === account.groupId)?.name || 'Sin Grupo';
+      if (dimension === 'CATEGORY') return account.category?.split(' - ')[0] || 'Sin Categoría';
+      if (dimension === 'SUB') return account.category || 'Sin Categoría';
+      return 'General';
+    };
+
+    const dimensionBalances: Record<string, number> = {};
+    data.accounts.forEach(acc => {
+      const key = getDimensionKey(acc);
+      const val = convertValue(acc.balance, acc.currency, Currency.COP);
+      dimensionBalances[key] = (dimensionBalances[key] || 0) + (acc.type === AccountType.CREDIT ? -val : val);
     });
+
+    const groups = Object.entries(dimensionBalances)
+      .map(([name, value]) => ({ name, value }))
+      .filter(g => Math.abs(g.value) > 100) // Filter tiny amounts
+      .sort((a, b) => b.value - a.value);
 
     return {
       ea: ea * 100,
       projections,
-      currentNetWorth
+      currentNetWorth: endValue,
+      groups
     };
-  }, [data.transactions, timeRange]);
+  }, [data.transactions, data.accounts, data.groups, timeRange, dimension]);
 
   if (!user?.isPremium) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 space-y-6">
-        <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center text-indigo-400">
-          <TrendingUp size={40} />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold text-white mb-2">Análisis de Rendimiento Pro</h2>
-          <p className="text-slate-400 max-w-md mx-auto">
-            La función <strong>"Bola de Nieve"</strong> permite proyectar tu patrimonio a futuro basado en tu rendimiento real.
-          </p>
-        </div>
-        <button
-          onClick={() => setPremiumModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition-all"
-        >
-          Desbloquear con SmartFi Pro
-        </button>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 space-y-6 text-slate-200">
+        <TrendingUp size={64} className="text-indigo-500 opacity-20" />
+        <h2 className="text-2xl font-bold">Análisis de Rendimiento Pro</h2>
+        <p className="max-w-md text-slate-400">Desbloquea proyecciones avanzadas, indicadores %EA y desglose por etiquetas.</p>
+        <button onClick={() => setPremiumModalOpen(true)} className="bg-indigo-600 px-8 py-3 rounded-xl font-bold">Mejorar a Pro</button>
         <PremiumModal isOpen={premiumModalOpen} onClose={() => setPremiumModalOpen(false)} />
       </div>
     );
   }
 
-  const chartData = [
+  const snowballChart = [
     { name: 'Hoy', value: stats.currentNetWorth, isFuture: false },
     ...stats.projections.map(p => ({ name: p.label, value: p.value, isFuture: true }))
   ];
@@ -1031,58 +1044,97 @@ const PerformancePage = () => {
     <div className="space-y-6 animate-fade-in pb-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Rendimiento y Bola de Nieve</h2>
-          <p className="text-sm text-slate-400">Análisis proyectado basado en tu historial</p>
+          <h2 className="text-2xl font-bold text-white">Análisis de Rendimiento</h2>
+          <p className="text-sm text-slate-400">Nivel de análisis:
+            <select
+              className="bg-transparent text-indigo-400 font-bold ml-1 focus:outline-none cursor-pointer"
+              value={dimension}
+              onChange={e => setDimension(e.target.value as any)}
+            >
+              <option value="GENERAL" className="bg-slate-900">Total General</option>
+              <option value="GROUP" className="bg-slate-900">Por Grupo</option>
+              <option value="CATEGORY" className="bg-slate-900">Por Categoría</option>
+              <option value="SUB" className="bg-slate-900">Por Etiqueta (Sub-categoría)</option>
+            </select>
+          </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <span className="text-[10px] text-slate-500 uppercase font-bold">Analizar historial de:</span>
           <TimeRangeSelector current={timeRange} onChange={setTimeRange} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-lg">
-          <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Rendimiento %EA</p>
+        <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
+          <p className="text-slate-400 text-xs font-bold uppercase mb-1">Rendimiento Histórico %EA</p>
           <h3 className="text-2xl font-bold text-indigo-400 font-mono">
             {stats.ea > 0 ? '+' : ''}{stats.ea.toFixed(2)}%
           </h3>
-          <p className="text-[10px] text-slate-500 mt-2">Basado en el periodo: {timeRange}</p>
+          <p className="text-[10px] text-slate-500 mt-2">Promedio anualizado</p>
         </div>
         {stats.projections.map((p, i) => (
-          <div key={i} className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-lg">
-            <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Proyección {p.label}</p>
+          <div key={i} className="bg-slate-800 p-5 rounded-xl border border-slate-700">
+            <p className="text-slate-400 text-xs font-bold uppercase mb-1">Bola de Nieve - {p.label}</p>
             <h3 className="text-xl font-bold text-emerald-400 font-mono">
               {getFormattedValue(p.value, Currency.COP)}
             </h3>
-            <p className="text-[10px] text-slate-500 mt-2">Ganancia: +{getFormattedValue(p.value - stats.currentNetWorth, Currency.COP)}</p>
+            <p className="text-[10px] text-slate-500 mt-2">Patrimonio estimado</p>
           </div>
         ))}
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-        <h3 className="text-lg font-bold text-slate-100 mb-6">Gráfico de Bola de Nieve (Proyección)</h3>
-        <div className="h-[350px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
-              <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
-              <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9' }}
-                formatter={(val: number) => [getFormattedValue(val, Currency.COP), 'Patrimonio Estimado']}
-              />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.isFuture ? '#10b981' : '#3b82f6'} fillOpacity={entry.isFuture ? 0.6 : 1} />
-                ))}
-              </Bar>
-              <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} dot={{ r: 6, fill: '#6366f1' }} />
-            </ComposedChart>
-          </ResponsiveContainer>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+          <h3 className="text-lg font-bold text-slate-100 mb-6">Proyección de Patrimonio Total</h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={snowballChart}>
+                <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
+                <YAxis stroke="#64748b" fontSize={12} tickFormatter={v => `$${(v / 1000000).toFixed(1)}M`} />
+                <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }} formatter={(v: any) => getFormattedValue(v, Currency.COP)} />
+                <Bar dataKey="value">
+                  {snowballChart.map((e, i) => <Cell key={i} fill={e.isFuture ? '#10b981' : '#3b82f6'} fillOpacity={e.isFuture ? 0.6 : 1} />)}
+                </Bar>
+                <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <p className="text-[10px] text-slate-500 mt-4 text-center italic">
-          * Nota: Estas proyecciones son estimaciones matemáticas basadas en el rendimiento pasado y no garantizan resultados futuros.
-        </p>
+
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+          <h3 className="text-lg font-bold text-slate-100 mb-6">Distribución {dimension !== 'GENERAL' ? 'por ' + dimension : ''}</h3>
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={stats.groups}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  innerRadius={60}
+                  stroke="none"
+                >
+                  {stats.groups.map((entry, index) => <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />)}
+                </Pie>
+                <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }} formatter={(v: any) => getFormattedValue(v, Currency.COP)} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-4 space-y-2 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar">
+            {stats.groups.map((g, i) => (
+              <div key={i} className="flex justify-between items-center text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors[i % colors.length] }}></div>
+                  <span className="text-slate-300 truncate max-w-[120px]">{g.name}</span>
+                </div>
+                <span className="text-slate-500 font-mono font-bold">
+                  {((g.value / stats.currentNetWorth) * 100).toFixed(1)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

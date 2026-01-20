@@ -31,6 +31,7 @@ export interface Account {
   initialBalance: number;
   createdAt: string;
   sortOrder: number;
+  category?: string;
 }
 
 export interface Group {

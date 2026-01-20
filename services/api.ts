@@ -123,7 +123,8 @@ export const api = {
           creditLimit: a.credit_limit ? Number(a.credit_limit) : undefined,
           initialBalance: Number(a.initial_balance),
           createdAt: a.created_at,
-          sortOrder: a.sort_order || 0
+          sortOrder: a.sort_order || 0,
+          category: a.category || ''
         })),
         transactions: transactions.data.map((t: any) => ({
           id: t.id,
@@ -180,7 +181,8 @@ export const api = {
         initial_balance: account.initialBalance,
         created_at: account.createdAt,
         user_id: account.userId,
-        sort_order: account.sortOrder || 0
+        sort_order: account.sortOrder || 0,
+        category: account.category || ''
       });
       if (error) throw error;
     },
@@ -194,6 +196,7 @@ export const api = {
       if (updates.name !== undefined) dbUpdates.name = updates.name;
       if (updates.groupId !== undefined) dbUpdates.group_id = updates.groupId;
       if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
+      if (updates.category !== undefined) dbUpdates.category = updates.category;
 
       const { error } = await supabase.from('accounts').update(dbUpdates).eq('id', id);
       if (error) throw error;
