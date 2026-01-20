@@ -565,9 +565,9 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MetricCard label="Patrimonio Neto" value={metrics.netWorth} currency={Currency.COP} color="text-white" />
-        <MetricCard label="Liquidez Disponible" value={metrics.liquidity} currency={Currency.COP} color="text-emerald-400" />
-        <MetricCard label="Poder de Compra" value={metrics.buyingPower} currency={Currency.COP} color="text-blue-400" />
+        <MetricCard label="Patrimonio Neto" value={metrics.netWorth} currency={Currency.COP} color="text-white" description="Dinero - Deudas" />
+        <MetricCard label="Liquidez Disponible" value={metrics.liquidity} currency={Currency.COP} color="text-emerald-400" description="Dinero" />
+        <MetricCard label="Poder de Compra" value={metrics.buyingPower} currency={Currency.COP} color="text-blue-400" description="Dinero + Cupo de Endeudamiento" />
       </div>
 
       <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg min-h-[400px]">
@@ -1218,12 +1218,13 @@ const PerformancePage = () => {
 
 // --- APP SHELL ---
 
-const MetricCard = ({ label, value, currency, color }: any) => {
+const MetricCard = ({ label, value, currency, color, description }: any) => {
   const { getFormattedValue } = useBudget();
   return (
     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
       <p className="text-slate-400 text-sm font-medium">{label}</p>
       <h2 className={`text-2xl font-bold mt-2 ${color}`}>{getFormattedValue(value, currency)}</h2>
+      {description && <p className="text-[10px] text-slate-500 mt-1 italic">{description}</p>}
     </div>
   );
 };
