@@ -157,6 +157,7 @@ const PremiumModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
           <ul className="text-sm text-slate-300 space-y-2 text-left list-disc list-inside">
             <li>Cuentas ilimitadas (más de 5)</li>
             <li>Grupos ilimitados (más de 3)</li>
+            <li>Estrategia Bola de Nieve</li>
           </ul>
         </div>
 
@@ -196,7 +197,7 @@ const PremiumModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
         </div>
 
         <p className="text-[10px] text-slate-500 mt-4 leading-relaxed">
-          Los pagos por PayPal se activan automáticamente. Si pagas por otros medios (Wise, Crypto), contacta a soporte para tu código.
+          Los pagos por PayPal se activan automáticamente. Si pagas por otros medios (Wise, Crypto), contacta a soporte para tu código: <span className="text-indigo-400">camiloalejandrolagosmalaver@gmail.com</span>
         </p>
       </div>
     </Modal>
