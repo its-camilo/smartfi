@@ -164,7 +164,7 @@ const PremiumModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
         <div className="space-y-3">
           <p className="text-sm text-slate-400">Suscríbete mensualmente</p>
           <a
-            href={(import.meta as any).env.VITE_PAYPAL_SUBSCRIPTION_URL || "#"}
+            href={(import.meta as any).env.VITE_PAYPAL_SUBSCRIPTION_URL || "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-74J23549XT158990DNFXNRNY"}
             target="_blank"
             rel="noopener noreferrer"
             className="block w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
