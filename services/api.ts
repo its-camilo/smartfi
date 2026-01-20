@@ -134,7 +134,7 @@ export const api = {
           exchangeRateUsed: Number(t.exchange_rate_used)
         })),
         settings: {
-          usdToCopRate: 4000 // In a real app, this could be stored in a 'settings' table or user metadata
+          usdToCopRate: 0 // Will be handled by the frontend fetch
         }
       };
     },

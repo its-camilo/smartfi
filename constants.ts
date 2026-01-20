@@ -5,7 +5,7 @@ export const INITIAL_DATA: AppData = {
   groups: [],
   transactions: [],
   settings: {
-    usdToCopRate: 4000, // Default fallback
+    usdToCopRate: 0,
   }
 };
 

@@ -1094,10 +1094,14 @@ export default function App() {
       const startDate = new Date(PROJECT_START_DATE).getTime();
       const filteredTransactions = fetched.transactions.filter(t => new Date(t.date).getTime() >= startDate);
 
-      setData({
+      setData(prev => ({
         ...fetched,
-        transactions: filteredTransactions
-      });
+        transactions: filteredTransactions,
+        settings: {
+          ...fetched.settings,
+          usdToCopRate: prev.settings.usdToCopRate > 0 ? prev.settings.usdToCopRate : (fetched.settings.usdToCopRate || 4000)
+        }
+      }));
     } catch (e) {
       console.error("Failed to load data", e);
     } finally {
