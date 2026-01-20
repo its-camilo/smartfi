@@ -30,12 +30,14 @@ export interface Account {
   creditLimit?: number;
   initialBalance: number;
   createdAt: string;
+  sortOrder: number;
 }
 
 export interface Group {
   id: string;
   userId: string;
   name: string;
+  sortOrder: number;
 }
 
 export interface UserProfile {

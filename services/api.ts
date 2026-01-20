@@ -108,7 +108,8 @@ export const api = {
         groups: groups.data.map((g: any) => ({
           id: g.id,
           userId: g.user_id,
-          name: g.name
+          name: g.name,
+          sortOrder: g.sort_order || 0
         })),
         accounts: accounts.data.map((a: any) => ({
           id: a.id,
@@ -121,7 +122,8 @@ export const api = {
           balance: Number(a.balance),
           creditLimit: a.credit_limit ? Number(a.credit_limit) : undefined,
           initialBalance: Number(a.initial_balance),
-          createdAt: a.created_at
+          createdAt: a.created_at,
+          sortOrder: a.sort_order || 0
         })),
         transactions: transactions.data.map((t: any) => ({
           id: t.id,
@@ -138,13 +140,23 @@ export const api = {
       };
     },
 
-    // Create Group
     createGroup: async (group: Group) => {
       const { error } = await supabase.from('groups').insert({
         id: group.id,
         name: group.name,
-        user_id: group.userId
+        user_id: group.userId,
+        sort_order: group.sortOrder || 0
       });
+      if (error) throw error;
+    },
+
+    // Update Group
+    updateGroup: async (id: string, updates: Partial<Group>) => {
+      const dbUpdates: any = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
+
+      const { error } = await supabase.from('groups').update(dbUpdates).eq('id', id);
       if (error) throw error;
     },
 
@@ -167,7 +179,8 @@ export const api = {
         credit_limit: account.creditLimit,
         initial_balance: account.initialBalance,
         created_at: account.createdAt,
-        user_id: account.userId
+        user_id: account.userId,
+        sort_order: account.sortOrder || 0
       });
       if (error) throw error;
     },
@@ -180,6 +193,7 @@ export const api = {
       if (updates.creditLimit !== undefined) dbUpdates.credit_limit = updates.creditLimit;
       if (updates.name !== undefined) dbUpdates.name = updates.name;
       if (updates.groupId !== undefined) dbUpdates.group_id = updates.groupId;
+      if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
 
       const { error } = await supabase.from('accounts').update(dbUpdates).eq('id', id);
       if (error) throw error;

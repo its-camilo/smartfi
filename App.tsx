@@ -19,7 +19,10 @@ import {
   LogOut,
   Loader2,
   AlertTriangle,
-  Settings
+  Settings,
+  ArrowUp,
+  ArrowDown,
+  Edit
 } from 'lucide-react';
 
 // Modules
@@ -61,6 +64,7 @@ interface BudgetContextType {
   updateAccount: (id: string, updates: Partial<Account>) => Promise<void>;
   deleteAccount: (id: string) => Promise<void>;
   addGroup: (group: Group) => Promise<void>;
+  updateGroup: (id: string, updates: Partial<Group>) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
   addTransaction: (transaction: Transaction, updateAccountBalance: boolean) => Promise<void>;
   updateUSDRate: (rate: number) => void;
@@ -560,7 +564,7 @@ const Dashboard = () => {
 };
 
 const AccountsPage = () => {
-  const { data, addAccount, updateAccount, deleteAccount, addGroup, deleteGroup, addTransaction, getFormattedValue, convertValue } = useBudget();
+  const { data, addAccount, updateAccount, deleteAccount, addGroup, updateGroup, deleteGroup, addTransaction, getFormattedValue, convertValue } = useBudget();
 
   // Modals State
   const [modals, setModals] = useState({ group: false, account: false, tx: false, edit: false });
@@ -643,6 +647,52 @@ const AccountsPage = () => {
     setModals(m => ({ ...m, edit: false }));
   };
 
+  const handleUpdateGroupTitle = async (name: string) => {
+    if (!selectedItem || selectedItem.type !== 'group') return;
+    await updateGroup(selectedItem.id, { name });
+    setModals(m => ({ ...m, edit: false }));
+  };
+
+  const handleMoveAccount = async (id: string, direction: 'up' | 'down') => {
+    const acc = data.accounts.find(a => a.id === id);
+    if (!acc) return;
+    const groupAccs = data.accounts.filter(a => a.groupId === acc.groupId).sort((a, b) => a.sortOrder - b.sortOrder);
+    const index = groupAccs.findIndex(a => a.id === id);
+    if (direction === 'up' && index > 0) {
+      const prev = groupAccs[index - 1];
+      await Promise.all([
+        updateAccount(acc.id, { sortOrder: prev.sortOrder }),
+        updateAccount(prev.id, { sortOrder: acc.sortOrder })
+      ]);
+    } else if (direction === 'down' && index < groupAccs.length - 1) {
+      const next = groupAccs[index + 1];
+      await Promise.all([
+        updateAccount(acc.id, { sortOrder: next.sortOrder }),
+        updateAccount(next.id, { sortOrder: acc.sortOrder })
+      ]);
+    }
+  };
+
+  const handleMoveGroup = async (id: string, direction: 'up' | 'down') => {
+    const groups = [...data.groups].sort((a, b) => a.sortOrder - b.sortOrder);
+    const index = groups.findIndex(g => g.id === id);
+    if (direction === 'up' && index > 0) {
+      const g = groups[index];
+      const prev = groups[index - 1];
+      await Promise.all([
+        updateGroup(g.id, { sortOrder: prev.sortOrder }),
+        updateGroup(prev.id, { sortOrder: g.sortOrder })
+      ]);
+    } else if (direction === 'down' && index < groups.length - 1) {
+      const g = groups[index];
+      const next = groups[index + 1];
+      await Promise.all([
+        updateGroup(g.id, { sortOrder: next.sortOrder }),
+        updateGroup(next.id, { sortOrder: g.sortOrder })
+      ]);
+    }
+  };
+
   return (
     <div className="space-y-8 pb-10 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -662,13 +712,15 @@ const AccountsPage = () => {
         <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
           <h3 className="text-lg font-semibold text-slate-300 mb-4">Sin Grupo</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {data.accounts.filter(a => !a.groupId).map(acc => (
+            {data.accounts.filter(a => !a.groupId).sort((a, b) => a.sortOrder - b.sortOrder).map(acc => (
               <AccountCard
                 key={acc.id}
                 account={acc}
                 onUpdate={() => openTxModal(acc.id)}
                 onEdit={() => { setSelectedItem({ type: 'account', id: acc.id }); setModals(m => ({ ...m, edit: true })); }}
                 onDelete={() => deleteAccount(acc.id)}
+                onMoveUp={() => handleMoveAccount(acc.id, 'up')}
+                onMoveDown={() => handleMoveAccount(acc.id, 'down')}
                 format={getFormattedValue}
               />
             ))}
@@ -677,8 +729,8 @@ const AccountsPage = () => {
       )}
 
       {/* Groups */}
-      {data.groups.map(group => {
-        const groupAccs = data.accounts.filter(a => a.groupId === group.id);
+      {data.groups.sort((a, b) => a.sortOrder - b.sortOrder).map(group => {
+        const groupAccs = data.accounts.filter(a => a.groupId === group.id).sort((a, b) => a.sortOrder - b.sortOrder);
         const total = groupAccs.reduce((sum, acc) => {
           const v = convertValue(acc.balance, acc.currency, Currency.COP);
           return acc.type === AccountType.CREDIT ? sum - v : sum + v;
@@ -688,7 +740,12 @@ const AccountsPage = () => {
           <div key={group.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
             <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-700/30">
               <div className="flex items-center gap-4">
-                <h3 className="text-xl font-bold text-white">{group.name}</h3>
+                <div className="flex flex-col gap-1 mr-2 border-r border-slate-700 pr-3">
+                  <button onClick={() => handleMoveGroup(group.id, 'up')} className="text-slate-500 hover:text-white transition-colors"><ArrowUp size={14} /></button>
+                  <button onClick={() => handleMoveGroup(group.id, 'down')} className="text-slate-500 hover:text-white transition-colors"><ArrowDown size={14} /></button>
+                </div>
+                <h3 className="text-xl font-bold text-white pr-2">{group.name}</h3>
+                <button onClick={() => { setSelectedItem({ type: 'group', id: group.id }); setModals(m => ({ ...m, edit: true })); }} className="text-slate-500 hover:text-indigo-400 p-1"><Edit size={16} /></button>
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right">
@@ -706,6 +763,8 @@ const AccountsPage = () => {
                   onUpdate={() => openTxModal(acc.id)}
                   onEdit={() => { setSelectedItem({ type: 'account', id: acc.id }); setModals(m => ({ ...m, edit: true })); }}
                   onDelete={() => deleteAccount(acc.id)}
+                  onMoveUp={() => handleMoveAccount(acc.id, 'up')}
+                  onMoveDown={() => handleMoveAccount(acc.id, 'down')}
                   format={getFormattedValue}
                 />
               ))}
@@ -769,36 +828,64 @@ const AccountsPage = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={modals.edit} onClose={() => setModals(m => ({ ...m, edit: false }))} title="Editar Cuenta">
+      <Modal isOpen={modals.edit} onClose={() => setModals(m => ({ ...m, edit: false }))} title={selectedItem?.type === 'account' ? "Editar Cuenta" : "Editar Grupo"}>
         <div className="space-y-4">
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Mover a Grupo</label>
-            <select
-              className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
-              value={data.accounts.find(a => a.id === selectedItem?.id)?.groupId || ''}
-              onChange={(e) => handleUpdateGroup(e.target.value || null)}
-            >
-              <option value="">Sin Grupo</option>
-              {data.groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-          </div>
-          <p className="text-[10px] text-slate-500 italic">Selecciona un grupo para mover la cuenta automáticamente.</p>
+          {selectedItem?.type === 'account' ? (
+            <>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Cambiar Nombre (Opcional)</label>
+                <input
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  defaultValue={data.accounts.find(a => a.id === selectedItem?.id)?.name}
+                  onBlur={(e) => updateAccount(selectedItem.id, { name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Mover a Grupo</label>
+                <select
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  value={data.accounts.find(a => a.id === selectedItem?.id)?.groupId || ''}
+                  onChange={(e) => handleUpdateGroup(e.target.value || null)}
+                >
+                  <option value="">Sin Grupo</option>
+                  {data.groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Nombre del Grupo</label>
+              <input
+                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-lg"
+                defaultValue={data.groups.find(g => g.id === selectedItem?.id)?.name}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateGroupTitle((e.target as HTMLInputElement).value) }}
+                onBlur={(e) => handleUpdateGroupTitle(e.target.value)}
+              />
+            </div>
+          )}
+          <p className="text-[10px] text-slate-500 italic">Los cambios se guardan automáticamente al presionar Enter o salir del campo.</p>
         </div>
       </Modal>
     </div>
   );
 };
 
-const AccountCard = ({ account, onUpdate, onEdit, onDelete, format }: any) => (
+const AccountCard = ({ account, onUpdate, onEdit, onDelete, onMoveUp, onMoveDown, format }: any) => (
   <div className="bg-slate-700/50 hover:bg-slate-700 transition-colors rounded-lg p-4 border border-slate-600 relative group">
     <div className="flex justify-between items-start mb-2">
-      <div>
-        <h4 className="font-bold text-white truncate max-w-[150px]">{account.name}</h4>
-        <div className="flex gap-1 mt-1">
-          <span className={`text-[10px] px-2 py-0.5 rounded-full ${account.type === AccountType.CREDIT ? 'bg-purple-900 text-purple-200' : 'bg-emerald-900 text-emerald-200'}`}>
-            {account.type === AccountType.CREDIT ? 'CRÉDITO' : 'DÉBITO'}
-          </span>
-          {account.currency === Currency.USD && <span className="text-[10px] bg-amber-900 text-amber-200 px-2 py-0.5 rounded-full">USD</span>}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={onMoveUp} className="text-slate-500 hover:text-white"><ArrowUp size={12} /></button>
+          <button onClick={onMoveDown} className="text-slate-500 hover:text-white"><ArrowDown size={12} /></button>
+        </div>
+        <div>
+          <h4 className="font-bold text-white truncate max-w-[150px]">{account.name}</h4>
+          <div className="flex gap-1 mt-1">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full ${account.type === AccountType.CREDIT ? 'bg-purple-900 text-purple-200' : 'bg-emerald-900 text-emerald-200'}`}>
+              {account.type === AccountType.CREDIT ? 'CRÉDITO' : 'DÉBITO'}
+            </span>
+            {account.currency === Currency.USD && <span className="text-[10px] bg-amber-900 text-amber-200 px-2 py-0.5 rounded-full">USD</span>}
+          </div>
         </div>
       </div>
       <button onClick={onEdit} className="text-slate-500 hover:text-indigo-400 p-1 transition-colors">
@@ -1224,6 +1311,10 @@ export default function App() {
       setData(p => ({ ...p, groups: [...p.groups, grpWithUser] }));
       await api.data.createGroup(grpWithUser);
       refreshData();
+    },
+    updateGroup: async (id, updates) => {
+      setData(p => ({ ...p, groups: p.groups.map(g => g.id === id ? { ...g, ...updates } : g) }));
+      await api.data.updateGroup(id, updates);
     },
     deleteGroup: async (id) => {
       setData(p => ({
