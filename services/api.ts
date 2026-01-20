@@ -130,7 +130,6 @@ export const api = {
           amount: Number(t.amount),
           newBalance: Number(t.new_balance),
           date: t.date,
-          reason: t.reason,
           exchangeRateUsed: Number(t.exchange_rate_used)
         })),
         settings: {
@@ -202,7 +201,6 @@ export const api = {
         amount: tx.amount,
         new_balance: tx.newBalance,
         date: tx.date,
-        reason: tx.reason,
         exchange_rate_used: tx.exchangeRateUsed,
         user_id: tx.userId
       });

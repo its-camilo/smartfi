@@ -15,7 +15,6 @@ export interface Transaction {
   amount: number;
   newBalance: number;
   date: string; // ISO String
-  reason: string;
   exchangeRateUsed: number;
 }
 

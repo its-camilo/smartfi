@@ -570,7 +570,7 @@ const AccountsPage = () => {
   const [newAccount, setNewAccount] = useState<Partial<Account>>({
     name: '', type: AccountType.DEBIT, currency: Currency.COP, balance: 0, groupId: ''
   });
-  const [txForm, setTxForm] = useState({ newBalance: '', newCreditLimit: '', date: new Date().toISOString().split('T')[0], reason: '' });
+  const [txForm, setTxForm] = useState({ newBalance: '', newCreditLimit: '', date: new Date().toISOString().split('T')[0] });
 
   // Handlers
   const handleCreateGroup = async () => {
@@ -604,8 +604,7 @@ const AccountsPage = () => {
       setTxForm({
         newBalance: acc.balance.toString(),
         newCreditLimit: acc.creditLimit?.toString() || '',
-        date: new Date().toISOString().split('T')[0],
-        reason: ''
+        date: new Date().toISOString().split('T')[0]
       });
       setModals(m => ({ ...m, tx: true }));
     }
@@ -631,7 +630,6 @@ const AccountsPage = () => {
         amount: diff,
         newBalance: newBal,
         date: new Date(txForm.date).toISOString(),
-        reason: txForm.reason || "Ajuste manual",
         exchangeRateUsed: data.settings.usdToCopRate
       }, true);
     }
