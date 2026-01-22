@@ -1006,6 +1006,11 @@ const AccountCard = ({ account, onUpdate, onEdit, onDelete, onMoveUp, onMoveDown
               {account.type === AccountType.CREDIT ? 'CRÉDITO' : 'DÉBITO'}
             </span>
             {account.currency === Currency.USD && <span className="text-[10px] bg-amber-900 text-amber-200 px-2 py-0.5 rounded-full">USD</span>}
+            {account.category && account.category !== 'Sin Categoría' && (
+              <span className="text-[10px] bg-indigo-900 text-indigo-200 px-2 py-0.5 rounded-full truncate max-w-[100px]">
+                {account.category}
+              </span>
+            )}
           </div>
         </div>
       </div>
